@@ -11,7 +11,7 @@ CareerBridge AI helps people explore career options, compare labor-market signal
 - University: Xiamen University Malaysia
 - Team members (5): Fang Ziming, Zhu Xiaosong, Yang Qiyu, Song Haokun, and Chen Zhigu
 - Premium sponsor technology: RunPod Serverless (vLLM). A direct console inference request completed; the app-side RunPod adapter is included in `runpod.mjs`.
-- Demo, pitch, and live-site links: to be added when available
+- Live site: https://codecatalyst-careerbridge-ai.onrender.com/; demo and pitch links: to be added when available
 
 The competition materials require a public GitHub repository, source code, this README, an Apache 2.0 license, and a `submission/` folder containing the completed proposal and genuine platform proof. Add those materials only after they exist. Do not present sample or placeholder files as proof.
 
@@ -38,7 +38,7 @@ Open `http://localhost:3000`. Set `DATABASE_URL` to enable accounts. Set `DEEPSE
 
 ## Deployment
 
-The web application is a Node service; RunPod is used as a model-inference endpoint, not as the web host. The included `render.yaml` describes a separate web service and database. Review Render's current pricing and the Blueprint plan before creating paid services. Do not connect a production site to an old database.
+The web application is a Node service; RunPod is used as a model-inference endpoint, not as the web host. The current Render preview uses free web and Postgres tiers; the free database expires after 30 days, and the free web service can sleep when idle. Do not connect a production site to an old database.
 
 See [RunPod deployment guide](RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. App-side end-to-end use still requires private server credentials and a live web/database deployment.
 

@@ -1,30 +1,65 @@
 # CareerBridge AI
 
-CareerBridge AI helps people explore career options, compare labor-market signals, and build a skills-based learning path. The project combines a Node.js web app, PostgreSQL-backed accounts, DeepSeek-powered web research, and optional RunPod-hosted language-model features.
+CareerBridge AI helps students and career transitioners understand how AI and labour-market change may affect their careers, then turn that evidence into practical learning steps.
 
-## Competition submission
+## Competition profile
 
-- Team name: codecatalyst
-- Project name: CareerBridge AI (careerbridge_ai)
-- Domain / SDG track: to be confirmed by the team
-- Team lead: Fang Ziming
-- University: Xiamen University Malaysia
-- Team members (5): Fang Ziming, Zhu Xiaosong, Yang Qiyu, Song Haokun, and Chen Zhigu
-- Premium sponsor technology: RunPod Serverless (vLLM). A direct console inference request completed; the app-side RunPod adapter is included in `src/runpod.mjs`.
-- Live site: https://codecatalyst-careerbridge-ai.onrender.com/; demo and pitch links: to be added when available
+- **Team:** CodeCatalyst
+- **Project:** CareerBridge AI
+- **Domain:** Domain 1 — AIVERSECITY
+- **SDG tracks:** SDG 4 (Quality Education) and SDG 8 (Decent Work and Economic Growth), especially Targets 4.4 and 8.5
+- **Team lead:** Fang Ziming
+- **University:** Xiamen University Malaysia
+- **Team members:** Fang Ziming, Zhu Xiaosong, Yang Qiyu, Song Haokun, and Chen Zhigu
 
-The competition materials require a public GitHub repository, source code, this README, an Apache 2.0 license, and a `submission/` folder containing the completed proposal and genuine platform proof. Add those materials only after they exist. Do not present sample or placeholder files as proof.
+## Links
 
-## Features
+- **Live demo:** [CareerBridge AI](https://codecatalyst-careerbridge-ai.onrender.com/)
+- **Pitch video:** To be added — the team has not provided a pitch-video link yet.
+- **GitHub repository:** [codecatalyst-careerbridge_ai](https://github.com/fangziming074-creator/codecatalyst-careerbridge_ai)
 
-- Generate cited career trend reports from a region, occupation, and time horizon. DeepSeek provides live web research; when configured, RunPod can write the report from those sources.
-- Explore labor-market indicators and company suggestions.
-- Create an account and sync profile, skills, learning path, saved roles, and badges across devices using PostgreSQL.
-- Use optional AI learning assistance and interview practice with a configured RunPod endpoint.
+## The problem and our approach
+
+The International Labour Organization reported that global youth unemployment reached **12.4% in 2025**, representing **67 million people aged 15–24**. CareerBridge AI responds with cited career outlooks and role-specific skills planning. Its readiness score compares self-reported skills with a role template; it is a planning aid, not a hiring or employment guarantee. [ILO, *Global Employment Trends for Youth 2026*](https://www.ilo.org/resource/news/youth-unemployment-rises-young-people-face-harder-road-decent-work)
+
+The project aligns with **SDG Target 4.4**, which calls for relevant skills for employment and decent work, and **SDG Target 8.5**, which calls for productive employment and decent work for all. [UN Goal 4](https://sdgs.un.org/goals/goal4) · [UN Goal 8](https://sdgs.un.org/goals/goal8)
+
+## What the app does
+
+- Generates forward-looking career reports for a selected region, occupation, and time horizon, with source links.
+- Presents labour-market indicators and company information to help users explore roles.
+- Lets users compare their self-assessed skills with role requirements and follow a personalised learning pathway.
+- Provides an authenticated AI workspace for learning-plan suggestions, tutoring, and mock-interview practice.
+- Stores accounts and saved career state in PostgreSQL when a database is configured.
+
+## How we used Replit, DeepSeek, and RunPod
+
+- **Replit:** We used Replit, the environment provided in the SDC workshops, to prototype and orchestrate the application architecture. The production website is hosted on Render.
+- **DeepSeek:** DeepSeek Search retrieves current labour-market sources through targeted searches. DeepSeek-V4-Pro synthesises those sources into cited career reports by default. If `AI_PROVIDER=runpod` is selected, DeepSeek still performs the search while RunPod writes the report.
+- **RunPod:** The authenticated AI workspace calls a RunPod Serverless, OpenAI-compatible endpoint serving **Qwen3-0.6B** for learning plans, tutoring content, and mock-interview feedback. RunPod is used for model inference; it does not host the website.
+- **World Bank:** The app uses the World Bank World Development Indicators unemployment series (`SL.UEM.TOTL.ZS`) for macroeconomic context. [Indicator source](https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS)
+
+## Technology
+
+- Frontend: HTML, CSS, and JavaScript
+- Application server: Node.js 20+
+- Database: PostgreSQL with the `pg` driver
+- Hosting: Render
+- AI services: DeepSeek Search, DeepSeek-V4-Pro, and RunPod Serverless (Qwen3-0.6B)
 
 ## Run locally
 
-Requirements: Node.js 20+ and, for account sync, PostgreSQL.
+Requirements: Node.js 20+. PostgreSQL is needed for account creation and saved-state sync.
+
+**Windows PowerShell**
+
+```powershell
+Copy-Item .env.example .env
+npm install
+npm start
+```
+
+**macOS / Linux**
 
 ```sh
 cp .env.example .env
@@ -32,29 +67,47 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000`. Set `DATABASE_URL` to enable accounts. Set `DEEPSEEK_API_KEY` for live career research. For RunPod features, set `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` in the server environment. Never put real keys in GitHub or browser-side code.
+Open [http://localhost:3000](http://localhost:3000). Set the server-side variables you need in `.env`:
 
-`AI_PROVIDER=deepseek` keeps DeepSeek as the report writer. `AI_PROVIDER=runpod` uses DeepSeek for web research and RunPod for report writing. RunPod alone does not perform the live web search required for career reports.
+- `DATABASE_URL` enables PostgreSQL accounts and saved-state sync.
+- `DEEPSEEK_API_KEY` enables live career research and reports.
+- `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` enable RunPod features.
+- `AI_PROVIDER=deepseek` uses DeepSeek for report writing (default); `AI_PROVIDER=runpod` uses DeepSeek for search and RunPod for report writing.
 
-## Deployment
+Use `.env.example` as the variable reference. Keep real credentials in private server or Render environment settings; never commit `.env` or put keys in browser code.
 
-The web application is a Node service; RunPod is used as a model-inference endpoint, not as the web host. The current Render preview uses free web and Postgres tiers; the free database expires after 30 days, and the free web service can sleep when idle. Do not connect a production site to an old database.
-
-See [RunPod deployment guide](docs/RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. Configure `DEEPSEEK_API_KEY`, `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` as private hosting secrets when the corresponding AI features are needed; never commit their values.
-
-## Project layout
-
-- `src/`: application source, including `server.mjs`, AI integrations, `public/` browser assets, and `migrations/`
-- `docs/`: deployment, validation, and project documentation
-- `tests/`: automated checks and browser fixtures
-- `submission/`: competition documents and genuine proof of use
-- Root: `README.md`, `LICENSE`, package and deployment configuration
-
-## Checks
+Run the automated Node checks with:
 
 ```sh
 npm test
 ```
 
-Automated tests use mocks and do not prove that a live RunPod endpoint, DeepSeek account, hosted site, or production database works.
+These checks use local mocks. Passing them does not establish that paid AI services, a deployed endpoint, or a production database are available.
+
+## Project structure
+
+```text
+.
+├── src/                 # Node.js app source, browser assets, and SQL migrations
+│   ├── server.mjs
+│   ├── accounts.mjs
+│   ├── ai-assistant.mjs
+│   ├── report-events.mjs
+│   ├── runpod.mjs
+│   ├── public/          # HTML, CSS/JS and browser-side assets
+│   └── migrations/      # PostgreSQL schema
+├── docs/                # Deployment and project documentation
+├── tests/               # Node tests, browser fixtures and validation scripts
+├── submission/          # Competition materials and RunPod proof of use
+├── .env.example
+├── Dockerfile
+├── LICENSE
+├── package.json
+├── render.yaml
+└── README.md
+```
+
+## Proposed Phase 2 impact target
+
+The proposal sets a **pilot target**, not a measured result: enroll at least 20 participants; within 14 days, aim for at least 70% (14 of 20) to complete a source-cited career report, a role-specific skills assessment, and a first learning action. The team also plans to measure paired career-planning clarity on a 1–5 scale and target an average increase of at least one point. The pilot-specific baseline has not yet been collected.
 

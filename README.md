@@ -17,9 +17,9 @@
 
 | Resource | Link |
 | --- | --- |
-| GitHub Repository | [codecatalyst-careerbridge_ai](https://github.com/fangziming074-creator/codecatalyst-careerbridge_ai) |
-| Live Demo | [CareerBridge AI](https://codecatalyst-careerbridge-ai.onrender.com/) |
-| Pitch Video | [Watch the team pitch](https://youtu.be/UXKkkAFPQa8) |
+| GitHub Repository | https://github.com/fangziming074-creator/codecatalyst-careerbridge_ai |
+| Live Demo | https://codecatalyst-careerbridge-ai.onrender.com/ |
+| Pitch Video | https://youtu.be/nObSoL85WiU |
 
 ## Overview
 
@@ -29,7 +29,7 @@ The app generates forward-looking career reports for a selected region, occupati
 
 The project aligns with **SDG Target 4.4**, which calls for relevant skills for employment and decent work, and **SDG Target 8.5**, which calls for productive employment and decent work for all. The International Labour Organization reported global youth unemployment at **12.4% in 2025**, representing **67 million people aged 15–24**. CareerBridge AI aims to respond with cited career outlooks and role-specific skills planning. Its readiness score is a planning aid, not a hiring or employment guarantee.
 
-Sources: [ILO, Global Employment Trends for Youth 2026](https://www.ilo.org/resource/news/youth-unemployment-rises-young-people-face-harder-road-decent-work) · [UN Goal 4](https://sdgs.un.org/goals/goal4) · [UN Goal 8](https://sdgs.un.org/goals/goal8)
+Sources: https://www.ilo.org/resource/news/youth-unemployment-rises-young-people-face-harder-road-decent-work · https://sdgs.un.org/goals/goal4 · https://sdgs.un.org/goals/goal8
 
 ## How to Run the Project
 
@@ -56,7 +56,7 @@ npm install
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Configure the server-side variables you need in `.env`:
+Open http://localhost:3000. Configure the server-side variables you need in `.env`:
 
 - `DATABASE_URL` enables PostgreSQL accounts and saved-state sync.
 - `DEEPSEEK_API_KEY` enables live career research, reports, and the AI workspace.
@@ -93,7 +93,7 @@ Keep credentials in private server or Render environment settings. Do not commit
 
 - **Replit:** Used in the SDC workshop to prototype and orchestrate the application architecture. The production website is hosted on Render.
 - **RunPod:** Provides an optional vLLM Serverless fallback for text generation when DeepSeek text generation is unavailable or returns an unusable response. Normal requests use DeepSeek. RunPod does not provide source search; reports still depend on DeepSeek Search for current sources.
-- **Proof of use:** The repository includes [RunPod proof of use](submission/RUNPOD%20PROOF%20OF%20USE.pdf). The team also retained [Replit proof of use](submission/REPLIT%20PROOF%20OF%20USE.pdf).
+- **Proof of use:** The repository includes submission/RUNPOD PROOF OF USE.pdf. The team also retained submission/REPLIT PROOF OF USE.pdf.
 
 ## Proposed Phase 2 Impact Target
 
@@ -106,4 +106,4 @@ The proposal sets a pilot target, not a measured result: enroll at least 20 part
 - Database: PostgreSQL with the `pg` driver
 - Hosting: Render
 - AI services: DeepSeek Search and DeepSeek-V4-Pro (primary); optional RunPod vLLM Serverless fallback for text generation
-- Macroeconomic context: World Bank World Development Indicators unemployment series [SL.UEM.TOTL.ZS](https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS)
+- Macroeconomic context: World Bank World Development Indicators unemployment series https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS

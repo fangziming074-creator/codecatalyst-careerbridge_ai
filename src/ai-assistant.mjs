@@ -42,11 +42,11 @@ export function assistantMessages(raw, state) {
   ];
 }
 
-export function createAssistantHandler({ deepseek, accounts, budget, readJson, json }) {
+export function createAssistantHandler({ deepseek, runpod, completeWithFallback, accounts, budget, readJson, json }) {
   return async function handle(req, res) {
     if (req.method !== "POST") return json(res, 405, { error: "POST required." });
     try {
-      if (!deepseek.configured) throw new AIError(503, "DeepSeek is not configured. / DeepSeek 尚未配置。");
+      if (!deepseek.configured && !runpod.configured) throw new AIError(503, "DeepSeek is unavailable and the Runpod fallback is not configured. / DeepSeek 不可用，且尚未配置 Runpod 备用服务。");
       const user = await accounts.authorizeAI(req);
       const raw = await readJson(req);
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AIError(400, "Invalid input. / 输入无效。");
@@ -57,7 +57,7 @@ export function createAssistantHandler({ deepseek, accounts, budget, readJson, j
       const messages = assistantMessages(raw, state);
       const release = budget.acquire(user.id);
       try {
-        const completion = await deepseek.complete(messages);
+        const completion = await completeWithFallback(messages);
         const choice = completion?.choices?.[0];
         const text = choice?.message?.content;
         if (choice?.finish_reason === "length" || typeof text !== "string" || !text.trim()) {
@@ -65,7 +65,7 @@ export function createAssistantHandler({ deepseek, accounts, budget, readJson, j
         }
         return json(res, 200, {
           text,
-          task: raw.task, provider: "DeepSeek", model: deepseek.model,
+          task: raw.task, provider: completion.careerbridgeProvider, model: completion.careerbridgeModel,
           generatedAt: new Date().toISOString(), evidenceVerified: false
         });
       } finally { release(); }

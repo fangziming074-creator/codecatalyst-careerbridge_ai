@@ -1,5 +1,8 @@
 # Validation record
 
+> Historical record for the initial RunPod-enabled delivery. The active application has since migrated all runtime AI requests to DeepSeek; see [AI deployment guide](AI-部署指南.md). The original RunPod proof of use remains in `submission/`.
+
+
 ## Included source
 
 - Repository: fangziming074-creator/careerbridge-ai-live.
@@ -19,7 +22,7 @@
 
 ## Not verified
 
-- No real Runpod inference, paid DeepSeek/market call, production database access, production data write, deployment, or production end-to-end test was performed.
+- No production website end-to-end test, paid DeepSeek/market call, production database access, production data write, or deployment was performed for this validation record.
 - Existing account behavior in browser tests uses synthetic API responses; no fresh PostgreSQL instance was provisioned for this delivery.
 - `configured=true` reports presence of settings, not model reachability, correct GPU capacity, JSON compatibility, or available funds.
 - No full historical data-isolation migration or cleanup was implemented.
@@ -31,4 +34,4 @@
 2. Run npm ci and npm test in the destination environment.
 3. Validate real registration/login/profile save against that new database.
 4. Explicitly approve a small paid model smoke test; verify English/Chinese output, report JSON compatibility, latency and cost.
-5. Set provider budget/worker limits and decide whether to keep the original report writer or select AI_PROVIDER=runpod.
+5. Confirm DeepSeek API access, model availability, request limits and expected usage before launch.

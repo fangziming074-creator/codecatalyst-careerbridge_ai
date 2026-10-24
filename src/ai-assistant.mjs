@@ -1,4 +1,4 @@
-import { AIError } from "./runpod.mjs";
+import { AIError } from "./ai-guards.mjs";
 
 const TASKS = new Set(["plan", "tutor", "interview"]);
 function field(value, max, required = false) {
@@ -25,7 +25,7 @@ export function assistantMessages(raw, state) {
   const context = {
     targetRole: role,
     weeklyHours: typeof profile.hours === "number" && profile.hours >= 1 && profile.hours <= 60 ? profile.hours : null,
-    // Do not send names, credentials, account IDs or the full state to the GPU.
+    // Do not send names, credentials, account IDs or the full state to an AI provider.
     skills: Object.entries(state?.skills || {}).slice(0, 60).map(([name, record]) => ({
       skill: String(name).slice(0, 100),
       selfReportedLevel: Number.isFinite(record?.level) ? record.level : null
@@ -42,11 +42,11 @@ export function assistantMessages(raw, state) {
   ];
 }
 
-export function createAssistantHandler({ runpod, accounts, budget, readJson, json }) {
+export function createAssistantHandler({ deepseek, accounts, budget, readJson, json }) {
   return async function handle(req, res) {
     if (req.method !== "POST") return json(res, 405, { error: "POST required." });
     try {
-      if (!runpod.configured) throw new AIError(503, "Runpod is not configured. / Runpod 尚未配置。");
+      if (!deepseek.configured) throw new AIError(503, "DeepSeek is not configured. / DeepSeek 尚未配置。");
       const user = await accounts.authorizeAI(req);
       const raw = await readJson(req);
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AIError(400, "Invalid input. / 输入无效。");
@@ -57,10 +57,15 @@ export function createAssistantHandler({ runpod, accounts, budget, readJson, jso
       const messages = assistantMessages(raw, state);
       const release = budget.acquire(user.id);
       try {
-        const completion = await runpod.complete(messages);
+        const completion = await deepseek.complete(messages);
+        const choice = completion?.choices?.[0];
+        const text = choice?.message?.content;
+        if (choice?.finish_reason === "length" || typeof text !== "string" || !text.trim()) {
+          throw new AIError(502, "DeepSeek returned an incomplete response. Please retry. / DeepSeek 返回内容不完整，请重试。");
+        }
         return json(res, 200, {
-          text: completion.choices[0].message.content,
-          task: raw.task, provider: "Runpod", model: runpod.model,
+          text,
+          task: raw.task, provider: "DeepSeek", model: deepseek.model,
           generatedAt: new Date().toISOString(), evidenceVerified: false
         });
       } finally { release(); }

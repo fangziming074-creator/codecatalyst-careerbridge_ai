@@ -5,7 +5,7 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAccountService } from "./accounts.mjs";
 import { respondWithReport } from "./report-events.mjs";
-import { createRunpod, createAIBudget, AIError } from "./runpod.mjs";
+import { createAIBudget, AIError } from "./ai-guards.mjs";
 import { createAssistantHandler } from "./ai-assistant.mjs";
 
 async function loadLocalEnv() {
@@ -20,9 +20,6 @@ async function loadLocalEnv() {
   }
 }
 await loadLocalEnv();
-const AI_PROVIDER = process.env.AI_PROVIDER || "deepseek";
-if (!["deepseek", "runpod"].includes(AI_PROVIDER)) throw new Error("AI_PROVIDER must be deepseek or runpod");
-const runpod = createRunpod();
 const aiBudget = createAIBudget(Math.max(1, Math.min(100, Number(process.env.AI_REQUESTS_PER_HOUR) || 10)));
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const WEB_ROOT = resolve(ROOT, "public");
@@ -30,6 +27,20 @@ const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.DEEPSEEK_API_KEY || "";
 const API_BASE = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
 const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-pro";
+const deepseek = {
+  configured: Boolean(API_KEY),
+  model: MODEL,
+  complete(messages, { json = false, maxTokens = 2400 } = {}) {
+    return deepSeekPost("/chat/completions", {
+      model: MODEL,
+      messages,
+      thinking: { type: "disabled" },
+      ...(json ? { response_format: { type: "json_object" } } : {}),
+      max_tokens: Math.min(8000, Math.max(1, Math.floor(Number(maxTokens) || 2400))),
+      temperature: 0.2
+    }, 120000);
+  }
+};
 const TRUST_PROXY = process.env.TRUST_PROXY === "1";
 const RATE_LIMIT_VALUE = Number(process.env.RATE_LIMIT_PER_HOUR || 6);
 const RATE_LIMIT = Number.isFinite(RATE_LIMIT_VALUE) ? Math.min(100, Math.max(1, Math.floor(RATE_LIMIT_VALUE))) : 6;
@@ -85,7 +96,7 @@ const accounts = createAccountService({
   requestIp
 });
 await accounts.initialize();
-const handleAssistant = createAssistantHandler({ runpod, accounts, budget: aiBudget, readJson, json });
+const handleAssistant = createAssistantHandler({ deepseek, accounts, budget: aiBudget, readJson, json });
 
 function consumeRateLimit(ip) {
   const now = Date.now();
@@ -393,9 +404,7 @@ async function createReport(input, progress = () => {}) {
     max_tokens: 8000,
     temperature: 0.2
   };
-  const completion = AI_PROVIDER === "runpod"
-    ? await runpod.complete(completionPayload.messages, { json: true, maxTokens: 8000 })
-    : await deepSeekPost("/chat/completions", completionPayload, 120000);
+  const completion = await deepSeekPost("/chat/completions", completionPayload, 120000);
   const choice = completion?.choices?.[0];
   const message = choice?.message?.content;
   if (choice?.finish_reason === "length") throw new AppError(502, "文章内容被模型输出长度限制截断，请稍后重试。我们已调整生成设置以减少此情况。 ");
@@ -417,7 +426,7 @@ async function createReport(input, progress = () => {}) {
   return {
     report,
     sources: sources.map(({ id, title, url, siteName, publishedAt, authority, topic, summary, snippet }) => ({ id, title, url, siteName, publishedAt, authority, topic, summary, snippet })),
-    meta: { provider: AI_PROVIDER === "runpod" ? "Runpod" : "DeepSeek", model: AI_PROVIDER === "runpod" ? runpod.model : MODEL, generatedAt, searchCount: successful.length, coverage }
+    meta: { provider: "DeepSeek", model: MODEL, generatedAt, searchCount: successful.length, coverage }
   };
 }
 
@@ -439,9 +448,7 @@ function setCached(key, value) {
 
 async function handleReport(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "请通过报告页面提交职业信息。" });
-  if (AI_PROVIDER === "runpod" && !runpod.configured) return json(res, 503, { error: "Runpod 尚未配置。 / Runpod is not configured." });
-  const reportUser = AI_PROVIDER === "runpod" ? await accounts.authorizeAI(req) : null;
-  if (!API_KEY) return json(res, 503, { error: "实时报告服务尚未配置。请在服务器环境变量中设置新创建的 DEEPSEEK_API_KEY。" });
+  if (!API_KEY) return json(res, 503, { error: "实时 AI 服务尚未配置。请在服务器环境变量中设置新创建的 DEEPSEEK_API_KEY。" });
   const origin = req.headers.origin;
   if (origin) {
     let originUrl;
@@ -462,22 +469,19 @@ async function handleReport(req, res) {
     language: raw.language === "zh" ? "zh" : "en",
     horizon: (() => { const value = textField(raw.horizon, "分析周期", 40, false); const allowed = new Set(["未来 1–3 年", "未来 3–5 年", "未来 5–10 年"]); return allowed.has(value) ? value : "未来 3–5 年"; })()
   };
-  if (reportUser && (raw.workspace !== "user_owned" || raw.expectedAccountId !== reportUser.id)) {
-    return json(res, 409, { error: "Account changed. Refresh and sign in again. / 账户已改变，请刷新并重新登录。" });
-  }
-  const key = cacheKey({ ...input, owner: reportUser?.id || "public", provider: AI_PROVIDER, model: AI_PROVIDER === "runpod" ? runpod.model : MODEL });
+  const key = cacheKey({ ...input, owner: "public", provider: "deepseek", model: MODEL });
   const cached = getCached(key);
   if (cached) return json(res, 200, { ...cached, meta: { ...cached.meta, cached: true } });
   if (!consumeRateLimit(requestIp(req))) return json(res, 429, { error: `本网络每小时最多生成 ${RATE_LIMIT} 份新报告，请稍后再试。` });
   return respondWithReport(req, res, async progress => {
-    const release = reportUser ? aiBudget.acquire(reportUser.id) : () => {};
+    const release = () => {};
     try {
       const value = await createReport(input, progress);
       setCached(key, value);
       return value;
     } finally { release(); }
   }, error => {
-    const appError = error instanceof AppError || error instanceof AIError ? error : new AppError(502, "报告生成服务暂时异常，请稍后重试。");
+    const appError = error instanceof AppError ? error : new AppError(502, "报告生成服务暂时异常，请稍后重试。");
     console.error("[career-report]", appError.status, appError.publicMessage);
     return { status: appError.status, message: appError.publicMessage };
   });
@@ -703,8 +707,8 @@ const server = http.createServer(async (req, res) => {
   catch { return json(res, 400, { error: "Invalid URL" }); }
   if (url.pathname === "/api/ai/assist") return handleAssistant(req, res);
   if (url.pathname === "/api/ai/status" && req.method === "GET") return json(res, 200, {
-    configured: runpod.configured, accountsConfigured: accounts.configured,
-    reportProvider: AI_PROVIDER, tasks: ["plan", "tutor", "interview"]
+    configured: deepseek.configured, accountsConfigured: accounts.configured,
+    reportProvider: "deepseek", tasks: ["plan", "tutor", "interview"]
   });
   if (url.pathname === "/api/career-report") {
     try { return await handleReport(req, res); }
@@ -727,8 +731,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       configured: Boolean(API_KEY),
       accountsConfigured: accounts.configured,
-      provider: AI_PROVIDER === "runpod" ? "Runpod" : "DeepSeek",
-      runpodConfigured: runpod.configured
+      provider: "DeepSeek"
     });
   }
   if (accounts.matches(url.pathname)) return accounts.handle(req, res, url.pathname);
@@ -739,7 +742,7 @@ server.requestTimeout = 180000;
 server.headersTimeout = 30000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`CareerBridge AI running at http://localhost:${PORT}`);
-  if (!API_KEY) console.log("Set DEEPSEEK_API_KEY in the server environment to enable live reports.");
+  if (!API_KEY) console.log("Set DEEPSEEK_API_KEY in the server environment to enable live reports and AI workspace features.");
   if (!accounts.configured) console.log("Set DATABASE_URL to enable cross-device accounts and cloud profile sync.");
 });
 

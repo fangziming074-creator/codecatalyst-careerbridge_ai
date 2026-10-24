@@ -35,8 +35,8 @@ The project aligns with **SDG Target 4.4**, which calls for relevant skills for 
 ## How we used Replit, DeepSeek, and RunPod
 
 - **Replit:** We used Replit, the environment provided in the SDC workshops, to prototype and orchestrate the application architecture. The production website is hosted on Render.
-- **DeepSeek:** DeepSeek Search retrieves current labour-market sources through targeted searches. DeepSeek-V4-Pro synthesises those sources into cited career reports by default. If `AI_PROVIDER=runpod` is selected, DeepSeek still performs the search while RunPod writes the report.
-- **RunPod:** The authenticated AI workspace calls a RunPod Serverless, OpenAI-compatible endpoint serving **Qwen3-0.6B** for learning plans, tutoring content, and mock-interview feedback. RunPod is used for model inference; it does not host the website.
+- **DeepSeek:** DeepSeek Search retrieves current labour-market sources through targeted searches. DeepSeek-V4-Pro synthesises those sources into cited career reports and powers the authenticated AI workspace.
+- **RunPod:** We previously tested model inference on RunPod Serverless for the hackathon and retained the proof of use in [`submission/RUNPOD PROOF OF USE.pdf`](submission/RUNPOD%20PROOF%20OF%20USE.pdf). The current application runtime has migrated to DeepSeek and no longer sends AI requests to RunPod.
 - **World Bank:** The app uses the World Bank World Development Indicators unemployment series (`SL.UEM.TOTL.ZS`) for macroeconomic context. [Indicator source](https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS)
 
 ## Technology
@@ -45,7 +45,7 @@ The project aligns with **SDG Target 4.4**, which calls for relevant skills for 
 - Application server: Node.js 20+
 - Database: PostgreSQL with the `pg` driver
 - Hosting: Render
-- AI services: DeepSeek Search, DeepSeek-V4-Pro, and RunPod Serverless (Qwen3-0.6B)
+- AI services: DeepSeek Search and DeepSeek-V4-Pro
 
 ## Run locally
 
@@ -70,9 +70,9 @@ npm start
 Open [http://localhost:3000](http://localhost:3000). Set the server-side variables you need in `.env`:
 
 - `DATABASE_URL` enables PostgreSQL accounts and saved-state sync.
-- `DEEPSEEK_API_KEY` enables live career research and reports.
-- `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` enable RunPod features.
-- `AI_PROVIDER=deepseek` uses DeepSeek for report writing (default); `AI_PROVIDER=runpod` uses DeepSeek for search and RunPod for report writing.
+- `DEEPSEEK_API_KEY` enables live career research, reports, and the AI workspace.
+- `DEEPSEEK_BASE_URL` and `DEEPSEEK_MODEL` can override the API endpoint and model; defaults are shown in `.env.example`.
+- `AI_REQUESTS_PER_HOUR` limits each signed-in account’s AI workspace requests; `RATE_LIMIT_PER_HOUR` limits live reports per network.
 
 Use `.env.example` as the variable reference. Keep real credentials in private server or Render environment settings; never commit `.env` or put keys in browser code.
 
@@ -82,7 +82,7 @@ Run the automated Node checks with:
 npm test
 ```
 
-These checks use local mocks. Passing them does not establish that paid AI services, a deployed endpoint, or a production database are available.
+These checks use local mocks. Passing them does not establish that paid DeepSeek services or a production database are available.
 
 ## Project structure
 
@@ -93,12 +93,12 @@ These checks use local mocks. Passing them does not establish that paid AI servi
 │   ├── accounts.mjs
 │   ├── ai-assistant.mjs
 │   ├── report-events.mjs
-│   ├── runpod.mjs
+│   ├── ai-guards.mjs
 │   ├── public/          # HTML, CSS/JS and browser-side assets
 │   └── migrations/      # PostgreSQL schema
 ├── docs/                # Deployment and project documentation
 ├── tests/               # Node tests, browser fixtures and validation scripts
-├── submission/          # Competition materials and RunPod proof of use
+├── submission/          # Competition materials and historical RunPod proof of use
 ├── .env.example
 ├── Dockerfile
 ├── LICENSE

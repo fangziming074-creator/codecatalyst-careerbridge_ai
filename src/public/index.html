@@ -3146,16 +3146,7 @@ body {
     showStage({stage:"connecting"});
     try{
       if(!role||!region)throw new Error('请返回输入页填写地区和职业后重新生成。');
-      const aiStatusResponse=await fetch('/api/ai/status',{signal:controller.signal});
-      const aiStatus=aiStatusResponse.ok?await aiStatusResponse.json():{};
-      let owner={};
-      if(aiStatus.reportProvider==='runpod'){
-        const meResponse=await fetch('/api/me',{credentials:'same-origin',signal:controller.signal});
-        const me=meResponse.ok?await meResponse.json():{};
-        if(!me.user)throw new Error(reportLanguage==='zh'?'请先返回首页登录，再生成个人报告。':'Please sign in on the home page before generating a personal report.');
-        owner={workspace:'user_owned',expectedAccountId:me.user.id};
-      }
-      const response=await fetch('/api/career-report',{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},signal:controller.signal,body:JSON.stringify({region,role,context,horizon,language:reportLanguage,...owner})});
+      const response=await fetch('/api/career-report',{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},signal:controller.signal,body:JSON.stringify({region,role,context,horizon,language:reportLanguage})});
       const data=await window.CBReportStream.consume(response,showStage);
       render(data);
     }catch(error){

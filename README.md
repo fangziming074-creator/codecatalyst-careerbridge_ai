@@ -35,8 +35,8 @@ The project aligns with **SDG Target 4.4**, which calls for relevant skills for 
 ## How we used Replit, DeepSeek, and RunPod
 
 - **Replit:** We used Replit, the environment provided in the SDC workshops, to prototype and orchestrate the application architecture. The production website is hosted on Render.
-- **DeepSeek:** DeepSeek Search retrieves current labour-market sources through targeted searches. DeepSeek-V4-Pro synthesises those sources into cited career reports and powers the authenticated AI workspace.
-- **RunPod:** We previously tested model inference on RunPod Serverless for the hackathon and retained the proof of use in [`submission/RUNPOD PROOF OF USE.pdf`](submission/RUNPOD%20PROOF%20OF%20USE.pdf). The current application runtime has migrated to DeepSeek and no longer sends AI requests to RunPod.
+- **DeepSeek:** The primary provider. DeepSeek Search retrieves current labour-market sources through targeted searches, and DeepSeek-V4-Pro synthesises those sources into cited career reports and powers the authenticated AI workspace.
+- **Runpod:** An optional vLLM Serverless fallback for text generation. The app calls it only when DeepSeek text generation is unavailable or returns an unusable response; normal requests go to DeepSeek alone. Runpod does not replace DeepSeek Search, so a report cannot be generated if source retrieval fails. The team also retained its hackathon proof of use in [`submission/RUNPOD PROOF OF USE.pdf`](submission/RUNPOD%20PROOF%20OF%20USE.pdf).
 - **World Bank:** The app uses the World Bank World Development Indicators unemployment series (`SL.UEM.TOTL.ZS`) for macroeconomic context. [Indicator source](https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS)
 
 ## Technology
@@ -45,7 +45,7 @@ The project aligns with **SDG Target 4.4**, which calls for relevant skills for 
 - Application server: Node.js 20+
 - Database: PostgreSQL with the `pg` driver
 - Hosting: Render
-- AI services: DeepSeek Search and DeepSeek-V4-Pro
+- AI services: DeepSeek Search and DeepSeek-V4-Pro (primary); optional Runpod vLLM Serverless fallback for text generation
 
 ## Run locally
 
@@ -72,6 +72,8 @@ Open [http://localhost:3000](http://localhost:3000). Set the server-side variabl
 - `DATABASE_URL` enables PostgreSQL accounts and saved-state sync.
 - `DEEPSEEK_API_KEY` enables live career research, reports, and the AI workspace.
 - `DEEPSEEK_BASE_URL` and `DEEPSEEK_MODEL` can override the API endpoint and model; defaults are shown in `.env.example`.
+- Optional fallback: set `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` to a Runpod vLLM Serverless endpoint. Leave the key blank to disable fallback. The endpoint is called only after a DeepSeek text-generation failure; it is not called alongside DeepSeek.
+- `RUNPOD_TIMEOUT_MS` controls the maximum wait for the fallback (default 180000 ms).
 - `AI_REQUESTS_PER_HOUR` limits each signed-in account’s AI workspace requests; `RATE_LIMIT_PER_HOUR` limits live reports per network.
 
 Use `.env.example` as the variable reference. Keep real credentials in private server or Render environment settings; never commit `.env` or put keys in browser code.

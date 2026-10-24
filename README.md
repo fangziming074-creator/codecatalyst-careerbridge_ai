@@ -40,7 +40,7 @@ Open `http://localhost:3000`. Set `DATABASE_URL` to enable accounts. Set `DEEPSE
 
 The web application is a Node service; RunPod is used as a model-inference endpoint, not as the web host. The current Render preview uses free web and Postgres tiers; the free database expires after 30 days, and the free web service can sleep when idle. Do not connect a production site to an old database.
 
-See [RunPod deployment guide](RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. App-side end-to-end use still requires private server credentials and a live web/database deployment.
+See [RunPod deployment guide](RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. The deployed site has account storage enabled, but RunPod and DeepSeek API keys are not configured yet; add them as Render secrets to enable those AI features.
 
 ## Project layout
 

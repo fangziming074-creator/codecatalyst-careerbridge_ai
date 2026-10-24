@@ -27,6 +27,13 @@ const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.DEEPSEEK_API_KEY || "";
 const API_BASE = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
 const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-pro";
+const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || "";
+const RUNPOD_ENDPOINT_ID = (process.env.RUNPOD_ENDPOINT_ID || "446e2rl998rklk").trim();
+const RUNPOD_MODEL = process.env.RUNPOD_MODEL || "Qwen/Qwen3-0.6B";
+const RUNPOD_TIMEOUT_VALUE = Number(process.env.RUNPOD_TIMEOUT_MS || 180000);
+const RUNPOD_TIMEOUT_MS = Number.isFinite(RUNPOD_TIMEOUT_VALUE)
+  ? Math.min(300000, Math.max(1000, Math.floor(RUNPOD_TIMEOUT_VALUE)))
+  : 180000;
 const deepseek = {
   configured: Boolean(API_KEY),
   model: MODEL,
@@ -39,6 +46,18 @@ const deepseek = {
       max_tokens: Math.min(8000, Math.max(1, Math.floor(Number(maxTokens) || 2400))),
       temperature: 0.2
     }, 120000);
+  }
+};
+const runpod = {
+  configured: Boolean(RUNPOD_API_KEY && /^[A-Za-z0-9_-]{3,100}$/.test(RUNPOD_ENDPOINT_ID)),
+  model: RUNPOD_MODEL,
+  complete(messages, { maxTokens = 2400 } = {}) {
+    return runPodPost({
+      model: RUNPOD_MODEL,
+      messages,
+      max_tokens: Math.min(8000, Math.max(1, Math.floor(Number(maxTokens) || 2400))),
+      temperature: 0.2
+    }, RUNPOD_TIMEOUT_MS);
   }
 };
 const TRUST_PROXY = process.env.TRUST_PROXY === "1";
@@ -96,7 +115,7 @@ const accounts = createAccountService({
   requestIp
 });
 await accounts.initialize();
-const handleAssistant = createAssistantHandler({ deepseek, accounts, budget: aiBudget, readJson, json });
+const handleAssistant = createAssistantHandler({ deepseek, runpod, completeWithFallback, accounts, budget: aiBudget, readJson, json });
 
 function consumeRateLimit(ip) {
   const now = Date.now();
@@ -215,6 +234,63 @@ async function deepSeekPost(path, payload, timeoutMs = 90000) {
     throw new AppError(502, "DeepSeek API 请求未成功，请检查模型配置。");
   }
   return data;
+}
+
+async function runPodPost(payload, timeoutMs = RUNPOD_TIMEOUT_MS) {
+  let response;
+  try {
+    response = await fetch(`https://api.runpod.ai/v2/${encodeURIComponent(RUNPOD_ENDPOINT_ID)}/openai/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RUNPOD_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") throw new AppError(504, "Runpod 备用推理请求超时。");
+    throw new AppError(502, "暂时无法连接 Runpod 备用推理服务。");
+  }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
+  if (!response.ok) throw new AppError(response.status === 429 ? 503 : 502, "Runpod 备用推理服务暂时异常，请检查 Serverless 端点状态。");
+  return data;
+}
+
+async function completeWithFallback(messages, options = {}) {
+  let primaryError = null;
+  if (deepseek.configured) {
+    try {
+      const completion = await deepseek.complete(messages, options);
+      const choice = completion?.choices?.[0];
+      if (typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
+        throw new AppError(502, "DeepSeek 没有返回可用的生成内容。");
+      }
+      if (choice.finish_reason === "length") throw new AppError(502, "DeepSeek 输出内容被截断。");
+      return { ...completion, careerbridgeProvider: "DeepSeek", careerbridgeModel: MODEL };
+    } catch (error) {
+      primaryError = error;
+      if (![502, 503, 504].includes(error?.status)) throw error;
+    }
+  }
+
+  if (!runpod.configured) {
+    if (primaryError) throw primaryError;
+    throw new AppError(503, "DeepSeek 未配置，且 Runpod 备用推理服务未配置。");
+  }
+
+  console.warn("[ai-fallback] DeepSeek generation unavailable; using Runpod fallback.");
+  try {
+    const completion = await runpod.complete(messages, options);
+    const choice = completion?.choices?.[0];
+    if (typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
+      throw new AppError(502, "Runpod 没有返回可用的生成内容。");
+    }
+    if (choice.finish_reason === "length") throw new AppError(502, "Runpod 输出内容被截断。");
+    return { ...completion, careerbridgeProvider: "Runpod (fallback)", careerbridgeModel: RUNPOD_MODEL };
+  } catch (error) {
+    console.error("[ai-fallback] Runpod generation failed:", error?.status || "unknown");
+    throw new AppError(502, "DeepSeek 主生成服务异常，Runpod 备用推理也暂时不可用。请检查 Runpod Serverless 端点后重试。");
+  }
 }
 
 async function searchTopic(query, originalQuestion) {
@@ -404,7 +480,7 @@ async function createReport(input, progress = () => {}) {
     max_tokens: 8000,
     temperature: 0.2
   };
-  const completion = await deepSeekPost("/chat/completions", completionPayload, 120000);
+  const completion = await completeWithFallback(completionPayload.messages, { json: true, maxTokens: 8000 });
   const choice = completion?.choices?.[0];
   const message = choice?.message?.content;
   if (choice?.finish_reason === "length") throw new AppError(502, "文章内容被模型输出长度限制截断，请稍后重试。我们已调整生成设置以减少此情况。 ");
@@ -426,7 +502,7 @@ async function createReport(input, progress = () => {}) {
   return {
     report,
     sources: sources.map(({ id, title, url, siteName, publishedAt, authority, topic, summary, snippet }) => ({ id, title, url, siteName, publishedAt, authority, topic, summary, snippet })),
-    meta: { provider: "DeepSeek", model: MODEL, generatedAt, searchCount: successful.length, coverage }
+    meta: { provider: completion.careerbridgeProvider, model: completion.careerbridgeModel, generatedAt, searchCount: successful.length, coverage }
   };
 }
 
@@ -615,17 +691,10 @@ async function handleMarketRoleSignals(req, res) {
     "资料包：",
     evidence
   ].join("\n");
-  const completion = await deepSeekPost("/chat/completions", {
-    model: MODEL,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
-    ],
-    thinking: { type: "disabled" },
-    response_format: { type: "json_object" },
-    max_tokens: 1800,
-    temperature: 0.15
-  }, 90000);
+  const completion = await completeWithFallback([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
+  ], { json: true, maxTokens: 1800 });
   const choice = completion?.choices?.[0];
   const message = choice?.message?.content;
   if (choice?.finish_reason === "length") throw new AppError(502, "职业市场摘要未完整返回，请重试。");
@@ -666,7 +735,7 @@ async function handleMarketRoleSignals(req, res) {
     sources: sources.map(function ({ id, title, url, siteName, publishedAt, topic, summary, snippet }) {
       return { id, title, url, siteName, publishedAt, topic, summary, snippet };
     }),
-    meta: { provider: "DeepSeek", model: MODEL, generatedAt, searchCount: successful.length }
+    meta: { provider: completion.careerbridgeProvider, model: completion.careerbridgeModel, generatedAt, searchCount: successful.length }
   };
   if (!value.skills.sourceIds.length) value.skills.sourceIds = skillsSources;
   if (marketRoleSignalCache.size >= MAX_MARKET_ROLE_SIGNAL_CACHE_ITEMS) marketRoleSignalCache.delete(marketRoleSignalCache.keys().next().value);
@@ -707,8 +776,9 @@ const server = http.createServer(async (req, res) => {
   catch { return json(res, 400, { error: "Invalid URL" }); }
   if (url.pathname === "/api/ai/assist") return handleAssistant(req, res);
   if (url.pathname === "/api/ai/status" && req.method === "GET") return json(res, 200, {
-    configured: deepseek.configured, accountsConfigured: accounts.configured,
-    reportProvider: "deepseek", tasks: ["plan", "tutor", "interview"]
+    configured: deepseek.configured || runpod.configured, accountsConfigured: accounts.configured,
+    reportProvider: "deepseek", fallbackProviderConfigured: runpod.configured,
+    tasks: ["plan", "tutor", "interview"]
   });
   if (url.pathname === "/api/career-report") {
     try { return await handleReport(req, res); }
@@ -731,7 +801,8 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       configured: Boolean(API_KEY),
       accountsConfigured: accounts.configured,
-      provider: "DeepSeek"
+      provider: "DeepSeek",
+      fallbackProviderConfigured: runpod.configured
     });
   }
   if (accounts.matches(url.pathname)) return accounts.handle(req, res, url.pathname);

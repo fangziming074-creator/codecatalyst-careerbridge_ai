@@ -21,6 +21,14 @@ services:
           property: connectionString
       - key: DEEPSEEK_API_KEY
         sync: false
+      - key: RUNPOD_API_KEY
+        sync: false
+      - key: RUNPOD_ENDPOINT_ID
+        value: 446e2rl998rklk
+      - key: RUNPOD_MODEL
+        value: Qwen/Qwen3-0.6B
+      - key: RUNPOD_TIMEOUT_MS
+        value: "180000"
       - key: AI_REQUESTS_PER_HOUR
         value: "10"
 databases:

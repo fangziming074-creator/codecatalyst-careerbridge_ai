@@ -257,16 +257,23 @@ async function runPodPost(payload, timeoutMs = RUNPOD_TIMEOUT_MS) {
 }
 
 async function completeWithFallback(messages, options = {}) {
+  const { json: expectJson = false, ...providerOptions } = options;
+  const validated = (completion, provider, model) => {
+    const choice = completion?.choices?.[0];
+    const content = choice?.message?.content;
+    if (typeof content !== "string" || !content.trim()) throw new AppError(502, `${provider} 没有返回可用的生成内容。`);
+    if (choice.finish_reason === "length") throw new AppError(502, `${provider} 输出内容被截断。`);
+    if (expectJson) {
+      try { parseJsonObject(content); }
+      catch { throw new AppError(502, `${provider} 返回的 JSON 内容无法解析。`); }
+    }
+    return { ...completion, careerbridgeProvider: provider, careerbridgeModel: model };
+  };
+
   let primaryError = null;
   if (deepseek.configured) {
     try {
-      const completion = await deepseek.complete(messages, options);
-      const choice = completion?.choices?.[0];
-      if (typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
-        throw new AppError(502, "DeepSeek 没有返回可用的生成内容。");
-      }
-      if (choice.finish_reason === "length") throw new AppError(502, "DeepSeek 输出内容被截断。");
-      return { ...completion, careerbridgeProvider: "DeepSeek", careerbridgeModel: MODEL };
+      return validated(await deepseek.complete(messages, { ...providerOptions, json: expectJson }), "DeepSeek", MODEL);
     } catch (error) {
       primaryError = error;
       if (![502, 503, 504].includes(error?.status)) throw error;
@@ -280,13 +287,7 @@ async function completeWithFallback(messages, options = {}) {
 
   console.warn("[ai-fallback] DeepSeek generation unavailable; using Runpod fallback.");
   try {
-    const completion = await runpod.complete(messages, options);
-    const choice = completion?.choices?.[0];
-    if (typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
-      throw new AppError(502, "Runpod 没有返回可用的生成内容。");
-    }
-    if (choice.finish_reason === "length") throw new AppError(502, "Runpod 输出内容被截断。");
-    return { ...completion, careerbridgeProvider: "Runpod (fallback)", careerbridgeModel: RUNPOD_MODEL };
+    return validated(await runpod.complete(messages, providerOptions), "Runpod (fallback)", RUNPOD_MODEL);
   } catch (error) {
     console.error("[ai-fallback] Runpod generation failed:", error?.status || "unknown");
     throw new AppError(502, "DeepSeek 主生成服务异常，Runpod 备用推理也暂时不可用。请检查 Runpod Serverless 端点后重试。");

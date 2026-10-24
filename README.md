@@ -6,8 +6,10 @@ CareerBridge AI helps people explore career options, compare labor-market signal
 
 - Team name: codecatalyst
 - Project name: CareerBridge AI (careerbridge_ai)
-- Domain / SDG track: to be completed by the team
-- Team lead, university, and member count: to be completed by the team
+- Domain / SDG track: to be confirmed by the team
+- Team lead: Fang Ziming
+- University: Xiamen University Malaysia
+- Team members (5): Fang Ziming, Zhu Xiaosong, Yang Qiyu, Song Haokun, and Chen Zhigu
 - Premium sponsor technology: RunPod Serverless (vLLM). A direct console inference request completed; the app-side RunPod adapter is included in `runpod.mjs`.
 - Demo, pitch, and live-site links: to be added when available
 
@@ -55,6 +57,3 @@ npm test
 ```
 
 Automated tests use mocks and do not prove that a live RunPod endpoint, DeepSeek account, hosted site, or production database works.
-
-
-

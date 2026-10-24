@@ -4,8 +4,8 @@ import http from "node:http";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createRunpod, createAIBudget, AIError } from "./runpod.mjs";
-import { assistantMessages, createAssistantHandler } from "./ai-assistant.mjs";
+import { createRunpod, createAIBudget, AIError } from "../src/runpod.mjs";
+import { assistantMessages, createAssistantHandler } from "../src/ai-assistant.mjs";
 
 const env = { RUNPOD_ENDPOINT_ID: "synthetic-endpoint", RUNPOD_API_KEY: "synthetic-not-a-credential", RUNPOD_MODEL: "synthetic-model" };
 const reply = text => new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: text } }] }));
@@ -182,8 +182,8 @@ test("complete website boots with Runpod selected and no database, paid routes f
   spare.listen(0, "127.0.0.1"); await once(spare, "listening");
   const port = spare.address().port;
   await new Promise(resolve => spare.close(resolve));
-  const app = spawn(process.execPath, ["server.mjs"], {
-    cwd: fileURLToPath(new URL(".", import.meta.url)),
+  const app = spawn(process.execPath, ["src/server.mjs"], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
     env: {
       PATH: process.env.PATH, NODE_ENV: "test", PORT: String(port),
       DATABASE_URL: "", AI_PROVIDER: "runpod",

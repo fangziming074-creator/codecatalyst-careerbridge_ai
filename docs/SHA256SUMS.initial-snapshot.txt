@@ -1,3 +1,6 @@
+# Historical checksums for the original package snapshot before the GitHub src/ and docs/ reorganization.
+# These hashes and paths are retained as provenance; they are not a checksum manifest for the current repository tree.
+
 6572821e28b333ccc12da518440a74181260b8cb6f760d16e057bf9853da5950  .dockerignore
 56f1635e19c035f48ab29974ea15357b2298f7ee5cc811232ff2168cb02c12e2  .env.example
 373f664e5b28955285f2c756ada10c9a1d6a4ba3f0e59803a876dfd4df3c0b78  .gitignore

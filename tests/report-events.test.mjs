@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
-import { respondWithReport } from "./report-events.mjs";
+import { respondWithReport } from "../src/report-events.mjs";
 
 function fakeResponse() {
   return {
@@ -53,7 +53,7 @@ test("JSON failures keep their status and public error", async () => {
 });
 
 const context = { window: {}, TextDecoder };
-vm.runInNewContext(await readFile(new URL("public/report-stream.js", import.meta.url), "utf8"), context);
+vm.runInNewContext(await readFile(new URL("../src/public/report-stream.js", import.meta.url), "utf8"), context);
 const consume = context.window.CBReportStream.consume;
 function stream(text) {
   const bytes = new TextEncoder().encode(text);

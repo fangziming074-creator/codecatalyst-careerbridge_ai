@@ -10,7 +10,7 @@ import { createAssistantHandler } from "./ai-assistant.mjs";
 
 async function loadLocalEnv() {
   let contents = "";
-  try { contents = await readFile(new URL(".env", import.meta.url), "utf8"); } catch { return; }
+  try { contents = await readFile(new URL("../.env", import.meta.url), "utf8"); } catch { return; }
   for (const line of contents.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
     if (!match || match[1] in process.env) continue;

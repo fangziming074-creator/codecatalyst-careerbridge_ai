@@ -45,7 +45,7 @@ limits, model configuration, and the database schema are unchanged.
 After installing the existing application dependency:
 
 ```sh
-node --test report-events.test.mjs report-integration.test.mjs
+node --test tests/report-events.test.mjs tests/report-integration.test.mjs
 python3 tests/check-localization.py
 ```
 

@@ -22,7 +22,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/__entry__":
             data = (ROOT / "tests/entry.html").read_bytes()
         elif path == "/" and "entryTest=" in self.path:
-            data = (ROOT / "public/index.html").read_text().replace(
+            data = (ROOT / "src/public/index.html").read_text().replace(
                 "<head>", "<head><script>parent.beforeApp(window,new URL(location.href));</script>", 1).encode()
         else:
             return super().do_GET()
@@ -54,7 +54,7 @@ class Result(HTMLParser):
             self.text += data
 
 
-server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "public")))
+server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "src/public")))
 threading.Thread(target=server.serve_forever, daemon=True).start()
 try:
     with tempfile.TemporaryDirectory() as profile:

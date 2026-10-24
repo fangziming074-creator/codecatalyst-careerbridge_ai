@@ -17,7 +17,7 @@ import threading
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL = Path(__file__).parent.name == "targeted-fix"
-PUBLIC = ROOT / "repo-test/public" if LOCAL else ROOT / "public"
+PUBLIC = ROOT / "repo-test/public" if LOCAL else ROOT / "src/public"
 FIXTURE = Path(__file__).parent / ("screenshot-test.html" if LOCAL else "screenshots.html")
 
 

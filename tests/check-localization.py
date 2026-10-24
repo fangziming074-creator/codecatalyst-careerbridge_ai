@@ -17,15 +17,17 @@ import tempfile
 import threading
 
 ROOT = Path(__file__).resolve().parent.parent
-if (Path(__file__).parent / "public").is_dir():
+LOCAL = (Path(__file__).parent / "public").is_dir()
+if LOCAL:
     ROOT = Path(__file__).parent  # Local development copy.
+PUBLIC = ROOT / ("public" if LOCAL else "src/public")
 
 
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         request_url = urlparse(self.path)
         if request_url.path == "/" and "testCase" in parse_qs(request_url.query):
-            html = (ROOT / "public/index.html").read_text()
+            html = (PUBLIC / "index.html").read_text()
             shim = '<script>parent.beforeApp(window,new URL(location.href));</script>'
             data = html.replace("<head>", "<head>" + shim, 1).encode()
             self.send_response(200)
@@ -36,7 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
         if request_url.path == "/__experience_test__":
             fixture = ROOT / "tests/experience.html"
             if not fixture.exists():
-                fixture = ROOT / "public/experience-test.html"
+                fixture = PUBLIC / "experience-test.html"
             data = fixture.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -46,7 +48,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/__localization_test__":
             fixture = ROOT / "tests/localization.html"
             if not fixture.exists():
-                fixture = ROOT / "public/localization-test.html"
+                fixture = PUBLIC / "localization-test.html"
             data = fixture.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -86,7 +88,7 @@ def main():
     chromium = os.environ.get("CHROMIUM") or shutil.which("chromium") or shutil.which("chromium-browser")
     if not chromium:
         raise SystemExit("Chromium is required. Set CHROMIUM to its executable path.")
-    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "public")))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(PUBLIC)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         with tempfile.TemporaryDirectory(prefix="cb-i18n-") as profile:

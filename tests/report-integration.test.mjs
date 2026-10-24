@@ -28,8 +28,8 @@ test("real server report route: SSE stages, cache, JSON, validation, and failure
   spare.listen(0, "127.0.0.1"); await once(spare, "listening");
   const port = spare.address().port;
   await new Promise(resolve => spare.close(resolve));
-  const app = spawn(process.execPath, ["server.mjs"], {
-    cwd: fileURLToPath(new URL(".", import.meta.url)),
+  const app = spawn(process.execPath, ["src/server.mjs"], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
     env: {
       PATH: process.env.PATH, PORT: String(port), NODE_ENV: "test",
       DATABASE_URL: "", DEEPSEEK_API_KEY: "synthetic-local-test",

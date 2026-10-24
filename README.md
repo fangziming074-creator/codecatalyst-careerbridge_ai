@@ -10,7 +10,7 @@ CareerBridge AI helps people explore career options, compare labor-market signal
 - Team lead: Fang Ziming
 - University: Xiamen University Malaysia
 - Team members (5): Fang Ziming, Zhu Xiaosong, Yang Qiyu, Song Haokun, and Chen Zhigu
-- Premium sponsor technology: RunPod Serverless (vLLM). A direct console inference request completed; the app-side RunPod adapter is included in `runpod.mjs`.
+- Premium sponsor technology: RunPod Serverless (vLLM). A direct console inference request completed; the app-side RunPod adapter is included in `src/runpod.mjs`.
 - Live site: https://codecatalyst-careerbridge-ai.onrender.com/; demo and pitch links: to be added when available
 
 The competition materials require a public GitHub repository, source code, this README, an Apache 2.0 license, and a `submission/` folder containing the completed proposal and genuine platform proof. Add those materials only after they exist. Do not present sample or placeholder files as proof.
@@ -40,15 +40,15 @@ Open `http://localhost:3000`. Set `DATABASE_URL` to enable accounts. Set `DEEPSE
 
 The web application is a Node service; RunPod is used as a model-inference endpoint, not as the web host. The current Render preview uses free web and Postgres tiers; the free database expires after 30 days, and the free web service can sleep when idle. Do not connect a production site to an old database.
 
-See [RunPod deployment guide](RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. The deployed site has account storage enabled, but RunPod and DeepSeek API keys are not configured yet; add them as Render secrets to enable those AI features.
+See [RunPod deployment guide](docs/RUNPOD-部署指南.md) for endpoint setup, environment variables, limits, and cost considerations. A genuine RunPod console request completed on 2026-10-24; see `submission/RunPod_Proof_of_Use.pdf`. Configure `DEEPSEEK_API_KEY`, `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and `RUNPOD_MODEL` as private hosting secrets when the corresponding AI features are needed; never commit their values.
 
 ## Project layout
 
-- `server.mjs`, `runpod.mjs`, `ai-assistant.mjs`: Node server and AI integrations
-- `public/`: website UI
-- `migrations/`: PostgreSQL schema migrations
-- `tests/` and `*.test.mjs`: automated checks
+- `src/`: application source, including `server.mjs`, AI integrations, `public/` browser assets, and `migrations/`
+- `docs/`: deployment, validation, and project documentation
+- `tests/`: automated checks and browser fixtures
 - `submission/`: competition documents and genuine proof of use
+- Root: `README.md`, `LICENSE`, package and deployment configuration
 
 ## Checks
 
@@ -57,3 +57,4 @@ npm test
 ```
 
 Automated tests use mocks and do not prove that a live RunPod endpoint, DeepSeek account, hosted site, or production database works.
+

@@ -18,7 +18,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/__ai__":
             data = (ROOT / "tests/ai.html").read_bytes()
         elif self.path.startswith("/") and "aiTest=" in self.path:
-            html = (ROOT / "public/index.html").read_text()
+            html = (ROOT / "src/public/index.html").read_text()
             shim = "<script>parent.beforeApp(window,new URL(location.href));</script>"
             data = html.replace("<head>", "<head>" + shim, 1).encode()
         else:
@@ -55,7 +55,7 @@ def main():
     chromium = os.environ.get("CHROMIUM") or shutil.which("chromium")
     if not chromium:
         raise SystemExit("Chromium is required; set CHROMIUM to its executable path.")
-    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "public")))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "src/public")))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         with tempfile.TemporaryDirectory(prefix="cb-ai-") as profile:

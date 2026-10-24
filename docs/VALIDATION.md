@@ -13,7 +13,7 @@
 - `npm test`: 21 Node tests, including the existing report JSON/SSE regression suite, a real local HTTP assistant handler with synthetic account/model dependencies, and a real website startup/health/static-file/fail-closed test in Runpod mode without a database.
 - `python3 tests/check-ai.py`: 32 checks in actual headless Chromium. Covers guest/sample gates, blank inputs, English/Chinese UI, all three assistant tasks, ownership envelope, safe text rendering, manual retry, duplicate prevention, short follow-up history, feature-switch reset, and late-response discard.
 - `python3 tests/check-entry.py`: 29 existing entry/login/empty-input/translation checks in actual Chromium.
-- All inline JavaScript in public/index.html passed Node syntax checks.
+- All inline JavaScript in src/public/index.html passed Node syntax checks.
 - The 14 locked dependency versions, tarball URLs and integrity values matched public npm registry metadata. The lockfile uses portable public registry URLs, not an internal registry.
 - A credential-pattern scan of the export found no matching credential strings. This is a limited packaging check, not a security audit.
 

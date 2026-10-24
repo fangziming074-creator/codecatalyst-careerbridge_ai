@@ -20,7 +20,7 @@ AI 工作台读取当前登录账户已保存的岗位、时间及技能自报�
 ## 新 GitHub 仓库
 
 1. 解压项目包，在 GitHub 创建新的空仓库（比赛要求 public）。
-2. 上传项目目录中的全部文件；package.json、server.mjs、public、migrations 要位于仓库根目录，不要再套一层目录。
+2. 上传项目目录中的全部文件；package.json、Dockerfile、render.yaml 位于仓库根目录，应用源码、网页资源和数据库迁移位于 src/，测试位于 tests/。
 3. 确保隐藏文件 .gitignore、.env.example、.dockerignore 也上传。
 4. 不要上传自己的 .env、数据库备份或 node_modules。
 5. 此仓库可部署到 Render，也可作为 Node 项目导入 Replit。GitHub Pages 无法运行后端和登录数据库。
@@ -37,7 +37,7 @@ npm start
 
 浏览器打开 http://localhost:3000。
 未配置数据库/模型时，首页、静态示例、规则式功能仍能运行；对应线上账户和 AI 功能会显示未配置，不会伪造成功。
-配置 DATABASE_URL 后首次启动自动执行 migrations/001_accounts.sql。新站应连接新的空数据库。
+配置 DATABASE_URL 后首次启动自动执行 src/migrations/001_accounts.sql。新站应连接新的空数据库。
 生产环境用 NODE_ENV=production 和 HTTPS，反向代理确认可信后再设置 TRUST_PROXY=1。
 
 ## Render 新服务

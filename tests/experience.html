@@ -1,0 +1,161 @@
+<!doctype html><meta charset="utf-8"><title>Evidence and onboarding regression</title>
+<pre id="result">RUNNING</pre><div id="frame"></div>
+<script>
+(async function () {
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const report={checks:[],errors:[],stages:{},requests:[],untranslated:{}};
+  const assert=(condition,label)=>{if(!condition)throw new Error(label);report.checks.push(label)};
+  const personalKey="careerbridge_mvp_v1",sampleKey="careerbridge_sample_v1";
+  const required={"SQL":3,"Python":3,"数据分析":3,"数据可视化":2,"沟通表达":3};
+  const partial={profile:{name:"Preserved personal profile",role:"Coverage test role",userType:"worker",hours:5,roleRequirements:{"Coverage test role":required}},skills:{"SQL":{level:3,enabled:true,source:"自评",evidence:"Original evidence"}},history:[{text:"Preserved history"}]};
+  const full=JSON.parse(JSON.stringify(partial));
+  Object.entries(required).forEach(([name,level])=>full.skills[name]={level,enabled:true,source:"自评"});
+  const liveData={report:{title:"Mock sourced report",summary:"Mock summary.",aiImpact:"Mock AI analysis.",outlook:"Mock outlook.",scenarios:[],careerActions:[],watchlist:[],evidenceGaps:[]},sources:[{id:"S01",url:"https://www.weforum.org/publications/the-future-of-jobs-report-2025/",title:"Test source"}],meta:{model:"Test fixture",searchCount:4,coverage:["Test coverage"],generatedAt:"2026-10-24T00:00:00Z"}};
+  let currentFrame;
+  window.beforeApp=function(w,url){
+    const key=url.searchParams.get("testCase");
+    w.addEventListener("error",event=>report.errors.push({case:key,message:event.message}));
+    w.fetch=(input,options)=>window.mockFetch(key,input,options);
+    w.confirm=()=>false;w.prompt=()=>null;
+    report.stages[key]=[];
+    new w.MutationObserver(()=>{
+      const stage=w.document.getElementById("career-report-content")?.dataset.stage;
+      if(stage&&!report.stages[key].includes(stage))report.stages[key].push(stage);
+    }).observe(w.document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["data-stage"]});
+  };
+  window.mockFetch=async function(key,input,options={}){
+    const path=new URL(typeof input==="string"?input:input.url,location.href).pathname;
+    report.requests.push({case:key,path,method:options.method||"GET"});
+    if(path==="/api/me")return Response.json({user:key.startsWith("account")?{id:"local-test-user",username:"local_test_user"}:null});
+    if(path==="/api/auth/login")return Response.json({user:{id:"local-test-user",username:"local_test_user"}});
+    if(path==="/api/state"){
+      if(options.method==="PUT"){
+        report.cloudSnapshots=report.cloudSnapshots||[];
+        report.cloudSnapshots.push(JSON.parse(options.body));
+        return key==="accountFailure"?Response.json({error:"Sync unavailable"},{status:503}):Response.json({ok:true});
+      }
+      const saved=JSON.parse(JSON.stringify(full));saved.profile.name="Cloud test profile";
+      return Response.json({state:key==="fresh"?null:saved});
+    }
+    if(path==="/api/career-report"){
+      const count=report.requests.filter(item=>item.case===key&&item.path===path).length;
+      if(key==="failure"&&count===1)return Response.json({error:"Mock service unavailable"},{status:503});
+      if(key==="cached")return Response.json({...liveData,meta:{...liveData.meta,cached:true}});
+      const encoder=new TextEncoder();
+      return new Response(new ReadableStream({start(controller){
+        const send=(event,data)=>controller.enqueue(encoder.encode("event: "+event+"\ndata: "+JSON.stringify(data)+"\n\n"));
+        send("stage",{stage:"searching"});
+        setTimeout(()=>send("stage",{stage:"generating",sourceCount:1}),100);
+        setTimeout(()=>{send("report",liveData);controller.close()},220);
+      }}),{headers:{"Content-Type":"text/event-stream"}});
+    }
+    if(path.startsWith("/api/"))return Response.json({error:"Unavailable in this local test"},{status:503});
+    throw new Error("Unexpected fetch: "+path);
+  };
+  async function load(testCase,query=""){
+    if(currentFrame)currentFrame.remove();
+    const frame=document.createElement("iframe");
+    frame.style="width:1400px;height:1000px";
+    const loaded=new Promise(resolve=>frame.addEventListener("load",resolve,{once:true}));
+    frame.src="/?language=en&testCase="+testCase+query;
+    document.getElementById("frame").append(frame);
+    currentFrame=frame;
+    await loaded;await wait(50);
+    return frame.contentDocument;
+  }
+  function untranslated(d){
+    const out=[],walk=d.createTreeWalker(d.body,NodeFilter.SHOW_TEXT);
+    while(walk.nextNode()){
+      const node=walk.currentNode,p=node.parentElement;
+      if(!p||p.closest("script,style,[data-i18n-skip],.avatar,.company-mark")||!p.getClientRects().length)continue;
+      const text=node.nodeValue.trim();
+      if(/[\u3400-\u9fff]/.test(text)&&!out.includes(text))out.push(text);
+    }
+    return out;
+  }
+  try{
+    localStorage.clear();
+    let d=await load("fresh");
+    assert(!d.querySelector(".hero-score")&&!d.body.innerText.includes("62%"),"First visit has no seeded score or sample profile");
+    assert(d.querySelectorAll(".cb-entry-actions button").length===2&&d.querySelectorAll(".cb-steps li").length===3,"Two clear entry points and three steps");
+    d.querySelector('[data-action="start-own"]').click();await wait(30);
+    assert(Boolean(d.getElementById("auth-form"))&&!d.getElementById("profile-form"),"Build my profile requires login first");
+    d.getElementById("auth-username").value="local_test_user";
+    d.getElementById("auth-password").value="synthetic-test-password";
+    d.getElementById("auth-form").requestSubmit();await wait(50);
+    assert(Boolean(d.getElementById("profile-form")),"Successful login continues to the existing profile editor");
+    d.querySelector('[data-action="close-modal"]').click();
+
+    localStorage.setItem(personalKey,JSON.stringify(partial));
+    d=await load("partial");
+    assert(d.querySelector(".score-ring-inner strong").textContent==="1/5","One of five skills never produces a 100% headline");
+    assert(d.querySelector(".score-caption").textContent.includes("Insufficient evidence"),"Incomplete profile prioritizes the evidence warning");
+    d.querySelector('[data-nav="market"]').click();await wait(50);
+    const rows=Array.from(d.querySelectorAll(".recommendation-row"));
+    assert(rows.length===8&&rows.every(row=>!row.innerText.includes("%")&&row.innerText.includes("Insufficient evidence")),"Partial related roles have no misleading alignment percentages");
+    d.querySelector('[data-nav="companies"]').click();await wait(30);
+    assert(d.querySelectorAll(".cb-prep").length===1&&d.querySelector(".cb-prep").innerText.includes("Insufficient evidence"),"Company page has one evidence-aware role summary");
+    assert(Array.from(d.querySelectorAll(".company-card")).every(card=>!/%/.test(card.innerText)),"No repeated readiness percentages on company cards");
+    d.querySelector('[data-nav="overview"]').click();
+    d.querySelector('[data-action="guided-assessment"]').click();await wait(30);
+    assert(d.querySelectorAll("[data-assess-skill]:checked").length===1,"Guided assessment starts with just one required skill");
+
+    localStorage.setItem(personalKey,JSON.stringify(full));
+    d=await load("full");
+    assert(d.querySelector(".score-ring-inner strong").textContent==="100%","Full evidence still permits the existing alignment calculation");
+    d.querySelector('[data-nav="companies"]').click();await wait(30);
+    assert(d.querySelector(".cb-prep").innerText.includes("100%")&&Array.from(d.querySelectorAll(".company-card")).every(card=>!card.innerText.includes("%")),"Complete readiness is shown once, not as company fit");
+    const star=d.querySelector('[data-action="company-favorite"]');star.click();await wait(20);
+    assert(d.querySelector('[data-action="company-favorite"]').getAttribute("aria-pressed")==="true","Company favorites still work");
+    const beforeSample=localStorage.getItem(personalKey);
+    const cloudCallsBefore=report.requests.filter(x=>x.path==="/api/state").length;
+    d=await load("demo","&demo=1");
+    assert(d.body.innerText.includes("Sample profile")&&d.querySelector(".hero-score"),"Explicit sample opens a complete, clearly labeled workflow");
+    d.querySelector('[data-nav="path"]').click();await wait(20);
+    const task=d.querySelector("[data-path-complete]");task.click();await wait(20);
+    assert(d.querySelector("[data-path-complete]").checked,"Sample learning tasks retain completion behavior");
+    d.querySelector('[data-nav="market"]').click();await wait(30);
+    assert(!report.requests.some(x=>x.case==="demo"&&["/api/me","/api/state","/api/market-role-signals"].includes(x.path)),"Sample workspace neither loads accounts nor automatically calls paid role search");
+    assert(localStorage.getItem(personalKey)===beforeSample&&Boolean(localStorage.getItem(sampleKey)),"Sample changes preserve personal profile and history byte for byte");
+    assert(report.requests.filter(x=>x.path==="/api/state").length===cloudCallsBefore,"Sample never writes cloud state");
+    report.untranslated.demo=untranslated(d);
+
+    d=await load("sampleReport","&view=report&sample=1");
+    report.sampleHeading=d.querySelector("h1")?.textContent;report.sampleText=d.body.innerText.slice(0,450);
+    assert(d.querySelector("h1").textContent.includes("Sample report")&&d.body.textContent.toLowerCase().includes("not a live search"),"Sample report is visibly static, not a live analysis");
+    assert(!report.requests.some(x=>x.case==="sampleReport"),"Sample report performs no API request, including account sync");
+    assert(localStorage.getItem(personalKey)===beforeSample,"Opening a sample report does not mutate personal data");
+    report.untranslated.sampleReport=untranslated(d);
+
+    d=await load("live","&view=report&trendRole=Analyst&trendRegion=China");
+    await wait(300);
+    assert(report.stages.live.includes("searching")&&report.stages.live.includes("generating"),"Report shows actual server searching and generating stages");
+    assert(d.querySelector("h1").textContent==="Mock sourced report","Successful report still renders the server result");
+    report.untranslated.liveReport=untranslated(d);
+
+    d=await load("failure","&view=report&trendRole=Analyst&trendRegion=China");
+    assert(d.querySelector('[role="alert"]')&&d.querySelector("#career-report-retry"),"Report failure is accessible and offers retry");
+    assert(d.querySelector('[role="alert"] a').href.includes("sample=1"),"Failure also offers the explicitly labeled sample report");
+    d.querySelector("#career-report-retry").click();await wait(300);
+    assert(d.querySelector("h1").textContent==="Mock sourced report","Retry recovers without duplicate or stale report state");
+    assert(report.requests.filter(x=>x.case==="failure"&&x.path==="/api/career-report").length===2,"One retry makes exactly one additional report request");
+
+    d=await load("cached","&view=report&trendRole=Analyst&trendRegion=China");
+    assert(d.querySelector("h1").textContent==="Mock sourced report","Cached JSON responses remain compatible with the report page");
+    d=await load("account");await wait(350);
+    assert(d.querySelector(".hero-copy").innerText.includes("Cloud test profile"),"Existing signed-in users still load their cloud profile");
+    d.querySelector('[data-action="start-own"]').click();await wait(30);
+    const form=d.getElementById("profile-form");
+    form.querySelector('[name="name"]').value="Edited cloud profile";
+    form.requestSubmit();await wait(400);
+    assert(report.cloudSnapshots.at(-1).profile.name==="Edited cloud profile","Existing profile editor still saves to the authenticated cloud state");
+    d=await load("accountFailure");await wait(350);
+    d.querySelector('[data-action="start-sample"]').click();await wait(80);
+    assert(!new URL(d.defaultView.location.href).searchParams.has("demo")&&d.body.innerText.includes("Your data has not synced"),"Failed cloud sync blocks switching workspaces instead of losing unsaved changes");
+    assert(!report.errors.length,"No browser JavaScript errors");
+    assert(!Object.values(report.untranslated).some(x=>x.length),"Changed English flows contain no untranslated UI text");
+    report.pass=true;
+  }catch(error){report.error=error.message;report.pass=false;}
+  document.getElementById("result").textContent=JSON.stringify(report,null,2);
+})();
+</script>

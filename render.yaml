@@ -1,0 +1,38 @@
+# New service only. Review Render's prices and resource names before applying.
+services:
+  - type: web
+    name: careerbridge-runpod
+    runtime: node
+    plan: starter
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: careerbridge-runpod-db
+          property: connectionString
+      - key: AI_PROVIDER
+        value: deepseek
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: RUNPOD_API_KEY
+        sync: false
+      - key: RUNPOD_ENDPOINT_ID
+        sync: false
+      - key: RUNPOD_MODEL
+        sync: false
+      - key: AI_REQUESTS_PER_HOUR
+        value: "10"
+databases:
+  - name: careerbridge-runpod-db
+    plan: basic-256mb
+    databaseName: careerbridge
+    user: careerbridge

@@ -1,0 +1,123 @@
+<!doctype html><meta charset="utf-8"><pre id="result">RUNNING</pre><div id="frames"></div>
+<script>
+(async()=>{
+  const result={checks:[],errors:[]},wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const assert=(ok,label)=>{if(!ok)throw Error(label);result.checks.push(label)};
+  let frame,failLogin=false,state=null,requests=[],saved=[];
+  const user={id:"fixture-user",username:"fixture_user"};
+  window.beforeApp=function(w,url){
+    const scenario=url.searchParams.get("entryTest");
+    w.addEventListener("error",e=>result.errors.push(e.message));
+    w.confirm=()=>false;
+    w.fetch=async(input,options={})=>{
+      const path=new URL(input,location.href).pathname;requests.push({scenario,path});
+      if(path==="/api/me")return Response.json({user:scenario==="existing"?user:null});
+      if(path==="/api/state"){
+        if(options.method==="PUT"){saved.push(JSON.parse(options.body));return Response.json({ok:true})}
+        return Response.json({state});
+      }
+      if(path==="/api/auth/login")return failLogin?Response.json({error:"Synthetic login failure"},{status:401}):Response.json({user});
+      if(path==="/api/auth/register"||path==="/api/auth/recover")return Response.json({user,recoveryCode:"synthetic-recovery-fixture"});
+      if(path==="/api/auth/logout")return Response.json({ok:true});
+      return Response.json({error:"Not used in this local fixture"},{status:503});
+    };
+  };
+  async function load(scenario,language="en",query=""){
+    if(frame)frame.remove();
+    frame=document.createElement("iframe");frame.style="width:1400px;height:1000px;border:0";
+    const ready=new Promise(resolve=>frame.onload=resolve);
+    frame.src="/?entryTest="+scenario+"&language="+language+query;
+    document.getElementById("frames").append(frame);await ready;await wait(40);
+    return frame.contentDocument;
+  }
+  const click=(d,action)=>d.querySelector('[data-action="'+action+'"]').click();
+  function fillAuth(d,recovery=false){
+    d.getElementById("auth-username").value="fixture_user";
+    d.getElementById("auth-password").value="synthetic-test-password";
+    if(recovery)d.getElementById("auth-recovery").value="synthetic-recovery-fixture";
+    d.getElementById("auth-form").requestSubmit();
+  }
+  function assertBlank(d,label){
+    const f=d.getElementById("profile-form");
+    const fields=["name","customRole","roleDescription","roleExtraSkills","region","hours","userType","role","preference","studentStage","studentMajor","studentYear","studentGrade","studentInterests","studentFurtherStudy","workerIndustry","workerRole","workerExperience","workerSatisfaction","workerTransition","workerTasks"];
+    assert(fields.every(name=>f.elements.namedItem(name).value===""),label);
+  }
+  try{
+    localStorage.clear();
+    let d=await load("fresh");
+    assert(!d.body.textContent.includes("For a quick walkthrough, use the complete sample")&&!d.body.textContent.includes("现场演示可先体验完整示例"),"Image 2 paragraph is removed");
+    const buttons=Array.from(d.querySelectorAll(".cb-entry-actions button"));
+    assert(buttons.length===2&&buttons.every(b=>b.getBoundingClientRect().height>=76&&parseFloat(d.defaultView.getComputedStyle(b).fontSize)>=18),"Both home entry buttons are large and prominent");
+    frame.style.width="375px";await wait(30);
+    assert(buttons.every(b=>b.getBoundingClientRect().height>=68)&&d.defaultView.getComputedStyle(d.querySelector(".cb-entry-actions")).gridTemplateColumns.split(" ").length===1,"Entry buttons stack without clipping on mobile");
+    frame.style.width="1400px";await wait(20);
+    click(d,"start-own");await wait(30);
+    assert(!!d.getElementById("auth-form")&&!d.getElementById("profile-form"),"Guest Build my profile opens login, never the profile editor");
+    assert(d.getElementById("auth-username").value===""&&d.getElementById("auth-password").value==="","Login inputs have no preset values");
+    failLogin=true;fillAuth(d);await wait(40);
+    assert(!!d.getElementById("auth-form")&&!d.getElementById("profile-form"),"Failed login does not grant profile access");
+    failLogin=false;fillAuth(d);await wait(50);
+    assertBlank(d,"Successful login continues to a completely blank new profile");
+    const f=d.getElementById("profile-form");
+    f.elements.name.value="User entered name";f.elements.region.value="Malaysia";f.elements.hours.value="9";
+    f.elements.userType.value="student";f.elements.role.value="数据分析师";f.elements.role.dispatchEvent(new Event("change",{bubbles:true}));
+    f.requestSubmit();await wait(400);
+    assert(saved.at(-1).profile.name==="User entered name"&&saved.at(-1).profile.hours===9,"Authenticated profile saves user-entered values to the existing cloud API");
+    click(d,"start-own");await wait(40);
+    assert(d.getElementById("profile-form").elements.name.value==="User entered name","Reopening preserves actual saved user data");
+    click(d,"close-modal");click(d,"logout");await wait(40);
+    click(d,"edit-profile");await wait(40);
+    assert(!!d.getElementById("auth-form")&&!d.getElementById("profile-form"),"Alternate edit-profile entry also requires login after logout");
+    click(d,"close-modal");click(d,"guided-assessment");await wait(40);
+    assert(!!d.getElementById("auth-form"),"First assessment cannot bypass login to create a profile");
+
+    localStorage.removeItem("careerbridge_mvp_v1");state=null;saved=[];
+    d=await load("cancel");
+    click(d,"start-own");await wait(30);click(d,"close-modal");click(d,"open-auth");await wait(30);fillAuth(d);await wait(40);
+    assert(!d.getElementById("profile-form"),"Canceling the build flow does not reopen a profile on an unrelated login");
+
+    d=await load("registration");click(d,"start-own");await wait(30);
+    click(d,"auth-mode");await wait(30);fillAuth(d);await wait(40);
+    assert(!!d.querySelector(".recovery-code")&&!d.getElementById("profile-form"),"Registration preserves the recovery-code confirmation step");
+    click(d,"finish-registration");await wait(30);
+    assertBlank(d,"Registration confirmation continues to a blank profile");
+    d.getElementById("profile-form").requestSubmit();await wait(400);
+    assert(saved.at(-1).profile.hours===null&&saved.at(-1).profile.student.stage===""&&saved.at(-1).profile.preference==="","Saving omitted fields does not silently insert hours, stage, or preference defaults");
+    click(d,"start-own");await wait(30);assertBlank(d,"Blank saved fields remain blank when reopened");
+
+    d=await load("recovery");click(d,"start-own");await wait(30);click(d,"open-recovery");await wait(30);
+    fillAuth(d,true);await wait(40);
+    assert(!!d.querySelector(".recovery-code")&&!d.getElementById("profile-form"),"Recovery preserves the replacement-code confirmation");
+    click(d,"finish-registration");await wait(30);assertBlank(d,"Recovery confirmation resumes the requested profile flow");
+
+    state={profile:{name:"Existing user",role:"数据分析师",userType:"worker",region:"Saved region",hours:7,preference:"阅读与复盘",student:{stage:"硕士",furtherStudy:"愿意"},worker:{industry:"Saved industry"}}};
+    d=await load("existing");click(d,"start-own");await wait(30);
+    assert(d.getElementById("profile-form").elements.name.value==="Existing user"&&d.getElementById("profile-form").elements.hours.value==="7"&&!d.getElementById("auth-form"),"Already signed-in users retain their real profile without another login");
+
+    state=null;localStorage.removeItem("careerbridge_mvp_v1");
+    d=await load("reportFields");d.querySelector('[data-nav="signals"]').click();await wait(30);
+    const reportForm=d.getElementById("trend-request-form");
+    assert(["trendRegion","trendRole","trendContext","trendHorizon"].every(name=>reportForm.elements.namedItem(name).value===""),"Report fields and time horizon are not prefilled");
+    assert(reportForm.elements.trendHorizon.required,"Report time horizon must be chosen explicitly");
+    d.querySelector('[data-nav="market"]').click();await wait(30);
+    click(d,"set-role");await wait(30);
+    assert(!!d.getElementById("auth-form")&&!JSON.parse(localStorage.getItem("careerbridge_mvp_v1")).profile.role,"Market role suggestions cannot establish a guest profile");
+
+    localStorage.setItem("careerbridge_sample_v1",JSON.stringify({profile:{name:"Sample learner",role:"会计 / 审计助理"},skills:{}}));
+    d=await load("sample","en","&demo=1");
+    const heading=d.querySelector(".next-step strong");
+    assert(heading&&heading.textContent==="Confirm your current Excel level first","Image 1 Excel next-step heading is English");
+    assert(!requests.some(r=>r.scenario==="sample"&&(r.path==="/api/me"||r.path==="/api/state")),"Explore the sample remains accessible without login or cloud access");
+    click(d,"edit-profile");await wait(30);
+    assert(!!d.getElementById("profile-form"),"Editing the isolated sample remains available without creating a real profile");
+    d=await load("fromSample","en","&setup=1");
+    assert(!!d.getElementById("auth-form")&&!d.getElementById("profile-form"),"Returning from the sample to build a real profile requires login");
+    d=await load("chinese","zh");
+    assert(!d.body.textContent.includes("现场演示可先体验完整示例")&&d.querySelector(".cb-entry-actions").textContent.includes("体验示例")&&d.querySelector(".cb-entry-actions").textContent.includes("建立我的档案"),"Chinese page also removes Image 2 and retains both entry labels");
+    click(d,"start-own");await wait(30);assert(!!d.getElementById("auth-form"),"Chinese Build my profile also requires login");
+    assert(!result.errors.length,"No browser JavaScript errors in the changed flows");
+    result.pass=true;
+  }catch(error){result.pass=false;result.error=error.message}
+  document.getElementById("result").textContent=JSON.stringify(result);
+})();
+</script>

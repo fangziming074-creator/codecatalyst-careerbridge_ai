@@ -1,0 +1,93 @@
+<!doctype html><meta charset="utf-8"><title>Localization regression</title>
+<pre id="result">RUNNING</pre><iframe id="app" src="/?language=en" style="width:1400px;height:1000px"></iframe>
+<script>
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const cjk = /[\u3400-\u9fff]/;
+const results = { pages: {}, errors: [], examples: {} };
+const frame = document.getElementById("app");
+frame.addEventListener("load", async () => {
+  try {
+    const w = frame.contentWindow, d = frame.contentDocument;
+    w.addEventListener("error", e => results.errors.push(e.message));
+    await wait(100);
+    function collect() {
+      const walker = d.createTreeWalker(d.body, NodeFilter.SHOW_TEXT);
+      const text = [];
+      while(walker.nextNode()) {
+        const n = walker.currentNode, p = n.parentElement;
+        if (!p || p.closest("script,style,[data-i18n-skip],.avatar,.company-mark") || !p.getClientRects().length) continue;
+        const s = n.nodeValue.trim();
+        if (cjk.test(s) && !text.includes(s)) text.push(s);
+      }
+      return text;
+    }
+    for (const page of ["overview", "profile", "signals", "market", "companies", "path", "assessment"]) {
+      d.querySelector('[data-nav="'+page+'"]').click();
+      await wait(80);
+      results.pages[page] = collect();
+    }
+    d.querySelector('[data-action="assessment-mode"][data-mode="diagnostic"]').click();
+    await wait(80);
+    if (!d.querySelector('[data-assess-skill]:checked')) {
+      d.querySelector('[data-assess-skill="SQL"]').click();
+      await wait(80);
+    }
+    results.pages.quiz = collect();
+    const skills = Array.from(d.querySelectorAll("[data-assess-skill]"), el => el.getAttribute("data-assess-skill"));
+    Array.from(d.querySelectorAll("[data-assess-skill]:checked")).forEach(el => el.click());
+    results.quizSkillsTested = skills.length;
+    results.quizResiduals = {};
+    for (const skill of skills) {
+      const selector = '[data-assess-skill="' + CSS.escape(skill) + '"]';
+      d.querySelector(selector).click();
+      await wait(5);
+      const residual = collect();
+      if (residual.length) results.quizResiduals[skill] = residual;
+      document.getElementById("result").textContent=JSON.stringify(results,null,2);
+      d.querySelector(selector).click();
+    }
+    w.fetch=async input=>Response.json(String(input).includes("/api/state")?{state:null}:{user:{id:"local-test-user",username:"local_test_user"}});
+    d.querySelector('[data-action="edit-profile"]').click();
+    await wait(50);
+    d.getElementById("auth-username").value="local_test_user";
+    d.getElementById("auth-password").value="synthetic-test-password";
+    d.getElementById("auth-form").requestSubmit();
+    await wait(80);
+    results.pages.profileModal = collect();
+    results.attributeResiduals = Array.from(d.querySelectorAll("input,textarea,select,button,[title],[aria-label]")).flatMap(el =>
+      ["placeholder","title","aria-label"].filter(a => cjk.test(el.getAttribute(a)||"") && !el.closest("[data-i18n-skip]")).map(a => el.getAttribute(a))
+    );
+    results.optionValues = Array.from(d.querySelectorAll("option")).slice(0,12).map(x=>({value:x.value,text:x.textContent}));
+    const roleSelect=d.querySelector('select[name="role"]');
+    const beforeRole=roleSelect && roleSelect.value;
+    const input=d.querySelector('#profile-form input[type="text"]') || d.querySelector('#profile-form input');
+    input.value="我的原创名称 Data Science";
+    w.CBLocale.apply(d.documentElement);
+    results.inputsPreserved=input.value==="我的原创名称 Data Science" && (!roleSelect || roleSelect.value===beforeRole);
+    document.getElementById("result").textContent=JSON.stringify(results,null,2);
+    d.querySelector('[data-action="close-modal"]').click();
+    d.querySelector('[data-action="logout"]').click();await wait(50);
+    d.querySelector('[data-action="open-auth"]').click();
+    await wait(80);
+    results.pages.loginModal=collect();
+    d.querySelector('[data-action="auth-mode"]').click();
+    await wait(80);
+    results.pages.registerModal=collect();
+    d.querySelector('[data-action="open-recovery"]').click();
+    await wait(80);
+    results.pages.recoveryModal=collect();
+    d.querySelector('[data-action="close-modal"]').click();
+    const dynamic=d.createElement("span");
+    dynamic.textContent="数据库";
+    d.body.append(dynamic);
+    await wait(30);
+    results.dynamicNodeTranslated=dynamic.textContent==="Database";
+    document.getElementById("result").textContent=JSON.stringify(results,null,2);
+    dynamic.remove();
+    for(const s of ["Data Science","新媒体","数据库","重新生成路径","用户自评为“独立完成”；尚未由任务表现独立验证","检测到此浏览器中有已填写的档案、评估或学习记录。是否将这些资料上传到新账号，以便在其他设备继续使用？","删除账户将永久清除账户、档案、评估、计划和徽章。请输入当前密码确认：","重新生成会替换当前任务顺序并重置完成状态。是否继续？","这会清除本浏览器保存的个人档案、评估和学习进度。确定继续吗？","恢复初始演示档案会替换当前本地资料。建议先导出，再继续。","复制此报告链接："]) results.examples[s] = w.CBLocale.t(s);
+    results.language = d.documentElement.lang;
+    results.languageSwitchCheck="Checked separately with fresh page loads";
+    document.getElementById("result").textContent = JSON.stringify(results, null, 2);
+  } catch (e) { document.getElementById("result").textContent = JSON.stringify({error:e.message,stack:e.stack}); }
+},{once:true});
+</script>

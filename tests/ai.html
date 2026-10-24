@@ -1,0 +1,143 @@
+<!doctype html><meta charset="utf-8"><pre id="result">RUNNING</pre><div id="frames"></div>
+<script>
+(async()=>{
+  const result={checks:[],errors:[]},wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const assert=(ok,label)=>{if(!ok)throw Error(label);result.checks.push(label)};
+  const requests=[],fixtures={};
+  let frame;
+  const user={id:"fixture-ai-account",username:"fixture_ai"};
+  window.beforeApp=function(w,url){
+    const scenario=url.searchParams.get("aiTest");
+    const fixture=fixtures[scenario]||(fixtures[scenario]={});
+    w.addEventListener("error",event=>result.errors.push(event.message));
+    w.confirm=()=>false;
+    w.fetch=(input,options={})=>{
+      const path=new URL(input,location.href).pathname;
+      const request={scenario,path,method:options.method||"GET",body:options.body?JSON.parse(options.body):null};
+      requests.push(request);
+      if(path==="/api/me")return Promise.resolve(Response.json({user:["authenticated","chinese","missingConfig","requests","failure","pending","late"].includes(scenario)?user:null}));
+      if(path==="/api/state")return Promise.resolve(Response.json({state:{profile:{
+        name:"Saved account",role:"数据分析师",userType:"worker",region:"Malaysia",hours:8,
+        skills:[{name:"SQL",level:3},{name:"Python",level:2}]
+      }}}));
+      if(path==="/api/ai/status"){
+        if(scenario==="missingConfig")return Promise.resolve(Response.json({configured:false,accountsConfigured:true}));
+        return Promise.resolve(Response.json({configured:true,accountsConfigured:true}));
+      }
+      if(path==="/api/ai/assist"){
+        if(fixture.hold){
+          return new Promise(resolve=>{fixture.resolve=()=>resolve(Response.json({text:fixture.reply||"late response"}));});
+        }
+        if(scenario==="failure"&&fixture.fail!==false)
+          return Promise.resolve(Response.json({error:"Synthetic model failure"},{status:503}));
+        return Promise.resolve(Response.json({text:fixture.reply||"Safe generated advice"}));
+      }
+      return Promise.resolve(Response.json({error:"Unexpected synthetic endpoint: "+path},{status:503}));
+    };
+  };
+  async function load(scenario,language="en",demo=false){
+    if(frame)frame.remove();
+    frame=document.createElement("iframe");frame.style="width:1400px;height:1000px;border:0";
+    const ready=new Promise(resolve=>frame.onload=resolve);
+    frame.src="/?aiTest="+scenario+"&language="+language+(demo?"&demo=1":"");
+    document.getElementById("frames").append(frame);await ready;await wait(120);
+    return frame.contentDocument;
+  }
+  async function enterAssistant(d){d.querySelector('[data-nav="assistant"]').click();await wait(80);}
+  const status=d=>d.getElementById("ai-status");
+  const submit=d=>d.getElementById("ai-submit");
+  const send=(d,task="plan",question="Help me prepare")=>{
+    const selector=d.getElementById("ai-task");
+    if(selector.value!==task){
+      selector.value=task;
+      selector.dispatchEvent(new Event("change",{bubbles:true}));
+    }
+    d.getElementById("ai-question").value=question;
+    d.getElementById("ai-assistant-form").requestSubmit();
+  };
+  try{
+    localStorage.clear();
+    let d=await load("guest");
+    await enterAssistant(d);
+    assert(!!d.getElementById("ai-workspace")&&d.getElementById("ai-workspace").textContent.includes("Sign in and save your target role"),"Guest sees AI workspace login gate");
+    assert(!!d.getElementById("ai-login")&&!d.getElementById("ai-assistant-form"),"Guest cannot submit personal AI features");
+    assert(!requests.some(r=>r.scenario==="guest"&&r.path.startsWith("/api/ai/")),"Guest tab makes no AI status or paid assist calls");
+    d.getElementById("ai-login").click();await wait(30);
+    assert(!!d.getElementById("auth-form")&&!d.getElementById("profile-form"),"Guest AI login control opens sign-in flow");
+
+    d=await load("sample","en",true);await enterAssistant(d);
+    assert(d.getElementById("ai-workspace").textContent.includes("Sample workspace: paid AI requests are disabled"),"Demo explains paid AI is disabled");
+    assert(!requests.some(r=>r.scenario==="sample"&&r.path.startsWith("/api/ai/")),"Demo makes no AI API calls");
+
+    d=await load("authenticated");await enterAssistant(d);
+    assert(!!d.getElementById("ai-assistant-form")&&status(d).textContent.includes("Ready"),"Authenticated workspace becomes ready when status is configured");
+    assert(d.getElementById("ai-task").value===""&&d.getElementById("ai-question").value==="","Saved account starts with blank AI task and question inputs");
+    assert(d.body.textContent.includes("Only the saved role, weekly hours, skill names and self-reported levels")&&d.body.textContent.includes("not verified assessment evidence"),"English AI guidance explains data scope and evidence limits");
+
+    d=await load("chinese","zh");await enterAssistant(d);
+    assert(d.getElementById("ai-workspace").textContent.includes("AI 职业工作台")&&d.getElementById("ai-task").options[1].text==="学习计划建议"&&d.getElementById("ai-submit").textContent==="生成","Chinese AI controls are localized");
+    assert(d.body.textContent.includes("不会修改原学习计划或技能分数")&&d.body.textContent.includes("不会保存为报告历史"),"Chinese AI guidance explains limits and temporary results");
+
+    d=await load("missingConfig");await enterAssistant(d);
+    assert(submit(d).disabled&&status(d).textContent.includes("Runpod or the account database is not configured"),"Missing AI/database configuration disables submissions with explanation");
+
+    const fixture=fixtures.requests={};
+    d=await load("requests");await enterAssistant(d);
+    for(const task of ["plan","tutor","interview"]){
+      send(d,task,"Question for "+task);await wait(80);
+      const call=requests.filter(r=>r.scenario==="requests"&&r.path==="/api/ai/assist").at(-1);
+      assert(call&&call.method==="POST"&&call.body.workspace==="user_owned"&&call.body.expectedAccountId==="fixture-ai-account"&&call.body.task===task&&call.body.question==="Question for "+task&&call.body.language==="en","AI "+task+" request carries user workspace, expected account, task, question and locale");
+      assert(Array.isArray(call.body.history)&&call.body.history.length===0,"Switching to "+task+" starts with empty conversation history");
+    }
+    send(d,"interview","Follow-up interview question");await wait(80);
+    const followup=requests.filter(r=>r.scenario==="requests"&&r.path==="/api/ai/assist").at(-1);
+    assert(JSON.stringify(followup.body.history)==JSON.stringify([
+      {role:"user",content:"Question for interview"},
+      {role:"assistant",content:"Safe generated advice"}
+    ]),"Follow-up sends the prior user question and assistant response");
+    assert(followup.body.question==="Follow-up interview question","Follow-up includes its new question separately from recent history");
+    d.getElementById("ai-task").value="plan";
+    d.getElementById("ai-task").dispatchEvent(new Event("change",{bubbles:true}));
+    assert(d.getElementById("ai-result").textContent==="","Changing feature clears the previously rendered result");
+    send(d,"plan","Question after switching feature");await wait(80);
+    const switched=requests.filter(r=>r.scenario==="requests"&&r.path==="/api/ai/assist").at(-1);
+    assert(switched.body.history.length===0,"Switching feature clears prior user and assistant history");
+    fixture.reply='<img src=x onerror="window.__aiXss=true"> <scr'+'ipt>window.__aiXss=true</scr'+'ipt>';
+    send(d,"tutor","Render as text");await wait(80);
+    assert(d.getElementById("ai-result").textContent===fixture.reply&&!d.querySelector("#ai-result img")&&!d.querySelector("#ai-result script")&&!d.defaultView.__aiXss,"Model result is rendered as inert text, not executable HTML");
+    d.querySelector('[data-nav="overview"]').click();await wait(30);
+    await enterAssistant(d);
+    send(d,"tutor","Question after reopening");await wait(80);
+    const reopened=requests.filter(r=>r.scenario==="requests"&&r.path==="/api/ai/assist").at(-1);
+    assert(reopened.body.history.length===0,"Leaving and reopening assistant clears in-memory conversation history");
+
+    const failFixture=fixtures.failure={};
+    d=await load("failure");await enterAssistant(d);
+    send(d);await wait(100);
+    assert(status(d).textContent.includes("Synthetic model failure"),"Failed AI request reports failure without automatic retry");
+    assert(requests.filter(r=>r.scenario==="failure"&&r.path==="/api/ai/assist").length===1,"Failure issues exactly one request until a manual retry");
+    failFixture.fail=false;send(d);await wait(80);
+    assert(requests.filter(r=>r.scenario==="failure"&&r.path==="/api/ai/assist").length===2&&d.getElementById("ai-result").textContent==="Safe generated advice","User can manually retry a failed request successfully");
+
+    const pendingFixture=fixtures.pending={hold:true};
+    d=await load("pending");await enterAssistant(d);
+    send(d);await wait(30);
+    assert(submit(d).disabled&&d.getElementById("ai-stop").hidden===false&&d.getElementById("ai-task").disabled,"Pending AI request disables duplicate submission and task changes while showing stop control");
+    d.getElementById("ai-assistant-form").requestSubmit();await wait(30);
+    assert(requests.filter(r=>r.scenario==="pending"&&r.path==="/api/ai/assist").length===1,"Repeated submit while pending cannot create a duplicate request");
+    pendingFixture.resolve();await wait(60);
+    assert(!d.getElementById("ai-task").disabled,"Task selector is re-enabled after request completion");
+
+    const lateFixture=fixtures.late={hold:true,reply:"late reply must be discarded"};
+    d=await load("late");await enterAssistant(d);
+    send(d);await wait(30);
+    d.querySelector('[data-nav="overview"]').click();await wait(30);
+    lateFixture.resolve();await wait(60);
+    assert(!d.getElementById("ai-result")&&d.querySelector("#content").textContent!=="late reply must be discarded","Navigating away discards an in-flight AI reply");
+
+    assert(!result.errors.length,"No browser JavaScript errors in AI workspace flows");
+    result.pass=true;
+  }catch(error){result.pass=false;result.error=error.message}
+  document.getElementById("result").textContent=JSON.stringify(result);
+})();
+</script>

@@ -1,0 +1,53 @@
+<!doctype html><meta charset="utf-8"><pre id="result">RUNNING</pre>
+<script>
+(async()=>{
+  const checks=[],wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const assert=(ok,label)=>{if(!ok)throw Error(label);checks.push(label)};
+  let frame,resolveReport;
+  window.setup=function(w){
+    w.localStorage.setItem("careerbridge_mvp_v1",JSON.stringify({marketRegion:"malaysia",profile:{name:"",role:""}}));
+    w.fetch=async(input)=>{
+      if(String(input).includes("/api/career-report"))return new Promise(resolve=>{resolveReport=resolve});
+      return Response.json({user:null},{status:String(input).includes("/api/me")?200:503});
+    };
+  };
+  async function load(language,report){
+    if(frame)frame.remove();
+    frame=document.createElement("iframe");
+    const loaded=new Promise(resolve=>frame.onload=resolve);
+    frame.src="/?screenshotTest=1&language="+language+(report?"&view=report&trendRole=lawyer&trendRegion=Malaysia":"");
+    document.body.append(frame);await loaded;await wait(30);
+    return frame.contentDocument;
+  }
+  function response(){
+    return Response.json({report:{title:"English report",summary:"Test summary",currentMarket:"Test current market"},sources:[],meta:{coverage:[]}});
+  }
+  try{
+    let d=await load("en",true);
+    assert(d.getElementById("career-report-title").textContent==="Current state and outlook for lawyer in Malaysia","Screenshot 1: loading title is English");
+    resolveReport(response());await wait(30);
+    const sections=Array.from(d.querySelectorAll(".career-live-card > .career-report-eyebrow")).slice(0,2).map(n=>n.textContent);
+    assert(sections.includes("01 · SUMMARY")&&sections.includes("02 · CURRENT MARKET"),"Screenshot 2: summary and current-market section labels are English");
+    d=await load("en",false);d.querySelector('[data-nav="market"]').click();await wait(30);
+    const chart=Array.from(d.querySelectorAll(".market-bars")).find(n=>n.textContent.includes("51.5%"));
+    const labels=Array.from(chart.querySelectorAll(".market-skill-row > span")).map(n=>n.textContent);
+    assert(JSON.stringify(labels)===JSON.stringify(["Professionals","Managers","Technicians and associate professionals"]),"Screenshot 3: all three occupation labels are English");
+    const card=chart.closest(".card"),footer=card.querySelector(".source-row").textContent;
+    assert(footer.includes("Shares calculated from a total of 555,509 job ads")&&footer.includes("Aggregated by major occupation group"),"Screenshot 3: both statistical notes are English");
+    assert(JSON.stringify(Array.from(chart.querySelectorAll(".market-skill-row > strong")).map(n=>n.textContent))===JSON.stringify(["51.5%","15.8%","15.6%"]),"Screenshot 3: percentages are unchanged");
+    const href=card.querySelector(".source-row a").href;
+    d=await load("zh",true);
+    assert(d.getElementById("career-report-title").textContent==="lawyer 在 Malaysia 的现状与前景","Chinese loading title is preserved");
+    resolveReport(response());await wait(30);
+    const zhSections=Array.from(d.querySelectorAll(".career-live-card > .career-report-eyebrow")).slice(0,2).map(n=>n.textContent);
+    assert(zhSections.includes("01 · 摘要")&&zhSections.includes("02 · 现状"),"Chinese section labels are preserved");
+    d=await load("zh",false);d.querySelector('[data-nav="market"]').click();await wait(30);
+    const zhChart=Array.from(d.querySelectorAll(".market-bars")).find(n=>n.textContent.includes("51.5%"));
+    assert(zhChart.textContent.includes("专业人员")&&zhChart.textContent.includes("经理"),"Chinese occupation labels are preserved");
+    const zhFooter=zhChart.closest(".card").querySelector(".source-row");
+    assert(zhFooter.textContent.includes("广告计数按 555,509 条总量换算占比")&&zhFooter.textContent.includes("按职业大类汇总"),"Chinese statistical notes are preserved");
+    assert(zhFooter.querySelector("a").href===href,"Official source link is unchanged");
+    document.getElementById("result").textContent=JSON.stringify({pass:true,checks});
+  }catch(error){document.getElementById("result").textContent=JSON.stringify({pass:false,checks,error:error.message})}
+})();
+</script>

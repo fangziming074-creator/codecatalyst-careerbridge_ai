@@ -14,9 +14,11 @@ CareerBridge AI helps students and career transitioners understand how AI and la
 
 ## Links
 
-- **Live demo:** [CareerBridge AI](https://codecatalyst-careerbridge-ai.onrender.com/)
-- **Pitch video:** To be added — the team has not provided a pitch-video link yet.
-- **GitHub repository:** [codecatalyst-careerbridge_ai](https://github.com/fangziming074-creator/codecatalyst-careerbridge_ai)
+| Resource | Link |
+| --- | --- |
+| GitHub repository | [codecatalyst-careerbridge_ai](https://github.com/fangziming074-creator/codecatalyst-careerbridge_ai) |
+| Live demo | [CareerBridge AI](https://codecatalyst-careerbridge-ai.onrender.com/) |
+| Pitch video | [Watch the team pitch](https://youtu.be/UXKkkAFPQa8) |
 
 ## The problem and our approach
 
